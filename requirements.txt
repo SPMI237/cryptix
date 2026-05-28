@@ -1,1 +1,5 @@
-PySide6
+pycryptodome
+argon2-cffi
+pyside6
+pillow
+pyinstaller
