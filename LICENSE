@@ -2,29 +2,49 @@ Business Source License 1.1
 
 Licensor: Michel Idriss
 Project: Cryptix
-Licensed Work: Cryptix Multi-Algorithm Encryption Suite
+Licensed Work: Cryptix Multi‑Algorithm Encryption Suite
 
 Copyright (c) 2026 Michel Idriss
-All Rights Reserved.
+All rights reserved.
 
-Permission is granted to:
-- view the source code
-- audit the software
-- use the software for personal, educational, and research purposes
-- modify the software privately
+1. License Grant
+You are granted the right to:
 
-The following are prohibited without explicit written permission:
-- commercial resale
-- sublicensing
-- offering Cryptix as a paid hosted service
-- rebranding and redistribution as another proprietary product
-- removing attribution or copyright notices
+View and audit the source code
+Use the software for personal, educational, and research purposes
+Modify the software for private use
+Compile and run the software
 
-Change Date:
-2029-01-01
+2. Restrictions
+The following activities are prohibited without explicit written permission from the Licensor:
 
-On the Change Date, this license converts to:
-GPL v3
+Commercial resale of the software
+Offering Cryptix as a paid hosted or managed service
+Sublicensing under a different license
+Rebranding and redistribution as a proprietary product
+Removing attribution or copyright notices
 
-This software is provided "AS IS", without warranty of any kind.
-The authors are not responsible for data loss, misuse, security breaches, or damages resulting from use of this software.
+3. Change Date
+Change Date: 2029‑01‑01
+
+On the Change Date, this license will automatically convert to:
+
+GNU General Public License v3.0 (GPLv3)
+
+After the Change Date, the Licensed Work will be governed by GPLv3 terms.
+
+4. Disclaimer
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+The Licensor shall not be liable for:
+
+Data loss
+Corrupted files
+Security breaches
+Misuse of the software
+Any damages arising from use of the software
+
+5. Third‑Party Dependencies
+Cryptix relies on third‑party libraries which are subject to their own licenses.
+See THIRD_PARTY_LICENSES.md for details.
+
