@@ -33,7 +33,7 @@ Each encrypted file contains:
 Example layout:
 
 ```text
-[MAGIC][VERSION][ALGORITHM][SALT][NONCE][TAG][CIPHERTEXT]
+[MAGIC][VERSION][ALGORITHM][SALT][IV][TAG][FILENAME_LENGTH][FILENAME][CIPHERTEXT]
 ```
 
 ---
@@ -48,7 +48,7 @@ Identify files encrypted by Cryptix.
 Example:
 
 ```text
-CRX1
+GCA1
 ```
 
 ---
