@@ -34,4 +34,4 @@ PyInstaller is used to package Cryptix into a standalone Windows executable.
 Notice
 All third‑party libraries remain subject to their respective licenses.
 
-Cryptix does not modify the source code of these dependencies.
+Cryptix relies on these libraries without modifying their upstream source code.
