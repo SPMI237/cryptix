@@ -35,15 +35,17 @@ Cryptix follows several core security principles:
 - modular architecture
 - minimal plaintext exposure
 - secure error handling
+- metadata authentication using AEAD Additional Authenticated Data (AAD)
 
 ---
 
 ## Cryptographic Algorithms
 
-Currently supported algorithms include:
+Currently supported cryptographic primitives include:
 
-- AES-256-GCM
-- ChaCha20-Poly1305
+- AES-256-GCM (authenticated encryption)
+- ChaCha20-Poly1305 (authenticated encryption)
+- Argon2id (memory-hard password-based key derivation, 100MB configuration)
 
 Additional algorithms may be introduced in future versions.
 
