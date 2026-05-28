@@ -1,4 +1,5 @@
-Cryptix
+# Cryptix v1.0.0
+Current Stable Version: v1.0.0
 Multi‑Algorithm Authenticated Encryption Suite
 Cryptix is a security‑focused desktop encryption application designed to provide structured, authenticated local file protection using modern cryptographic primitives.
 
