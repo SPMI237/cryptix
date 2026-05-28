@@ -76,7 +76,7 @@ Example values:
 | ID | Algorithm |
 |----|------------|
 | 01 | AES-256-GCM |
-| 02 | ChaCha20 |
+| 02 | ChaCha20-Poly1305 |
 
 Future algorithms may be added.
 

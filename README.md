@@ -1,7 +1,7 @@
 # Cryptix
 ### Multi-Algorithm Encryption Suite
 
-Cryptix is a modular desktop encryption application designed to provide secure local file protection using modern cryptographic algorithms such as AES-256-GCM and ChaCha20.
+Cryptix is a modular desktop encryption application designed to provide secure local file protection using modern cryptographic algorithms such as AES-256-GCM and ChaCha20-Poly1305.
 
 The project focuses on:
 - secure encryption/decryption
@@ -13,7 +13,7 @@ The project focuses on:
 ## Features
 
 - AES-256-GCM encryption
-- ChaCha20 encryption
+- - ChaCha20-Poly1305 authenticated encryption
 - Secure password-based key derivation (Argon2id)
 - Dark mode interface
 - Encryption/decryption logging

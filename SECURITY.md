@@ -43,7 +43,7 @@ Cryptix follows several core security principles:
 Currently supported algorithms include:
 
 - AES-256-GCM
-- ChaCha20
+- ChaCha20-Poly1305
 
 Additional algorithms may be introduced in future versions.
 
