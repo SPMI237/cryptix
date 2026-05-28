@@ -1,0 +1,16 @@
+# config.py
+
+# Argon2 Parameters
+ARGON2_TIME_COST = 3
+ARGON2_MEMORY_COST = 102400  # 100 MB
+ARGON2_PARALLELISM = 8
+ARGON2_HASH_LEN = 32  # 256-bit key
+
+# AES Parameters
+AES_KEY_SIZE = 32
+AES_IV_SIZE = 12
+AES_TAG_SIZE = 16
+
+# File Format
+MAGIC_HEADER = b"GCA1"
+VERSION = 1
