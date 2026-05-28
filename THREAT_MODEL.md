@@ -53,7 +53,7 @@ Cryptix is designed to mitigate:
 | Stolen storage devices | Yes |
 | Offline brute-force attacks | Partially mitigated via Argon2id |
 | File tampering | Yes via authenticated encryption |
-| Metadata manipulation | Partially mitigated |
+| Metadata manipulation | Fully detected via authenticated metadata (AAD) |
 
 ---
 
