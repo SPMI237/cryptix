@@ -52,7 +52,15 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
 
         ciphertext = f.read()
 
-    key = derive_key(password, salt, keyfile_data)
+    # Emit small progress before heavy KDF
+        if progress_callback:
+            progress_callback(5)
+
+        key = derive_key(password, salt, keyfile_data)
+
+# Emit progress after KDF finishes
+        if progress_callback:
+            progress_callback(10)
 
     if algorithm == ALGO_AES:
         cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
@@ -75,7 +83,8 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
 
     total_size = len(ciphertext)
     processed = 0
-    CHUNK_SIZE = 64 * 1024
+    last_percent = 10
+    CHUNK_SIZE = 32 * 1024
     offset = 0
 
     while offset < total_size:
@@ -86,9 +95,10 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
         offset += CHUNK_SIZE
 
         if progress_callback:
-            percent = int((processed / total_size) * 100)
+            percent = 10 + int((processed / total_size) * 90)
+        if percent > last_percent:
+            last_percent = percent
             progress_callback(percent)
-
     try:
         cipher.verify(tag)
     except ValueError:
