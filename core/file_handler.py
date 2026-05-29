@@ -218,12 +218,27 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 
         zip_buffer = io.BytesIO()
 
+        # First count total files for progress calculation
+        all_files = []
+        for root, _, files in os.walk(input_path):
+            for file in files:
+                full_path = os.path.join(root, file)
+                all_files.append(full_path)
+
+        total_files = len(all_files)
+        processed_files = 0
+
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for root, _, files in os.walk(input_path):
-                for file in files:
-                    full_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(full_path, input_path)
-                    zipf.write(full_path, relative_path)
+            for full_path in all_files:
+                relative_path = os.path.relpath(full_path, input_path)
+                zipf.write(full_path, relative_path)
+
+                processed_files += 1
+
+        # Emit ZIP progress (10% → 50%)
+                if progress_callback and total_files > 0:
+                    percent = 10 + int((processed_files / total_files) * 40)
+                    progress_callback(percent)
 
         plaintext = zip_buffer.getvalue()
         original_name = os.path.basename(input_path) + ".zip"
@@ -252,7 +267,15 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         aad = header + filename_length + filename_bytes
         cipher.update(aad)
 
+        # Emit encryption start progress
+        if progress_callback:
+            progress_callback(50)
+
         ciphertext, tag = cipher.encrypt_and_digest(plaintext)
+
+# Emit encryption completion
+        if progress_callback:
+            progress_callback(100)
 
         with open(output_path, "wb") as f:
             f.write(header)
