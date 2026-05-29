@@ -121,7 +121,7 @@ See: `THREAT_MODEL.md` for full threat model.
 Clone the repository:
 
 ```bash
-git clone https://github.com/MichelIdriss/cryptix.git
+git clone https://github.com/SPMI237/cryptix.git
 cd cryptix
 ```
 
