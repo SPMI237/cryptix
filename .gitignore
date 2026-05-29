@@ -38,3 +38,5 @@ Thumbs.db
 # Test files
 test_*
 sample_*
+
+CRYPTIX_audit.log.enc
