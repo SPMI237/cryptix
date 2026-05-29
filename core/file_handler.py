@@ -127,7 +127,16 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
                  secure_delete_original=False):
 
     salt = generate_salt()
+
+# Emit small progress before heavy KDF
+    if progress_callback:
+        progress_callback(5)
+
     key = derive_key(password, salt, keyfile_data)
+
+# Emit progress after KDF finishes
+    if progress_callback:
+        progress_callback(10)
 
     if os.path.isfile(input_path):
 
@@ -179,8 +188,8 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
                 processed += len(chunk)
 
                 if progress_callback:
-                    percent = int((processed / total_size) * 100)
-                    progress_callback(percent)
+                   percent = 10 + int((processed / total_size) * 90)
+                   progress_callback(percent)
 
             tag = cipher.digest()
 
@@ -276,8 +285,15 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
 
         ciphertext = f.read()
 
-    key = derive_key(password, salt, keyfile_data)
+    # Emit small progress before heavy KDF
+        if progress_callback:
+            progress_callback(5)
 
+        key = derive_key(password, salt, keyfile_data)
+
+# Emit progress after KDF finishes
+        if progress_callback:
+            progress_callback(10)
     if algorithm == ALGO_AES:
         cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
     elif algorithm == ALGO_CHACHA:
@@ -313,9 +329,8 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
         offset += CHUNK_SIZE
 
         if progress_callback:
-            percent = int((processed / total_size) * 100)
+            percent = 10 + int((processed / total_size) * 90)
             progress_callback(percent)
-
     try:
         cipher.verify(tag)
     except ValueError:
