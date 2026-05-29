@@ -142,6 +142,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 
         total_size = os.path.getsize(input_path)
         processed = 0
+        last_percent = 10
 
         original_name = os.path.basename(input_path)
         output_path = input_path + ".cryptix"
@@ -178,7 +179,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
             outfile.write(filename_bytes)
 
             while True:
-                chunk = infile.read(64 * 1024)
+                chunk = infile.read(32 * 1024)
                 if not chunk:
                     break
 
@@ -188,8 +189,10 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
                 processed += len(chunk)
 
                 if progress_callback:
-                   percent = 10 + int((processed / total_size) * 90)
-                   progress_callback(percent)
+                    percent = 10 + int((processed / total_size) * 90)
+                    if percent > last_percent:
+                        last_percent = percent
+                        progress_callback(percent)
 
             tag = cipher.digest()
 
@@ -315,9 +318,10 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
 
     total_size = len(ciphertext)
     processed = 0
+    last_percent = 10
     decrypted_chunks = []
 
-    CHUNK_SIZE = 64 * 1024
+    CHUNK_SIZE = 32 * 1024
     offset = 0
 
     while offset < total_size:
@@ -330,7 +334,9 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
 
         if progress_callback:
             percent = 10 + int((processed / total_size) * 90)
-            progress_callback(percent)
+            if percent > last_percent:
+                last_percent = percent
+                progress_callback(percent)
     try:
         cipher.verify(tag)
     except ValueError:
