@@ -52,6 +52,26 @@ Cryptographic logic is fully separated from the GUI layer.
 
 ---
 
+# Screenshots
+
+## Main Interface
+![Main UI](assets/screenshots/main_ui.png)
+
+## Encryption in Progress
+![Encryption Progress](assets/screenshots/encryption_progress.png)
+
+## Successful Encryption
+![Encryption Success](assets/screenshots/encryption_success.png)
+
+## Algorithm Selection
+![Algorithm Selection](assets/screenshots/algorithm_selection.png)
+
+## Audit Log Viewer
+![Audit Log](assets/screenshots/audit_log.png)
+
+## Dark Mode 
+![Dark Mode](assets/screenshots/dark_mode.png)
+
 # File Format Specification
 
 Encrypted files follow a structured binary layout:
