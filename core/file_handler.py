@@ -127,6 +127,44 @@ def secure_delete(file_path: str):
 
     os.remove(file_path)
 
+def secure_delete_folder(folder_path: str):
+    """
+    Securely delete a folder by overwriting and removing all files.
+    Basic secure deletion (not forensic-grade).
+    """
+
+    if not os.path.isdir(folder_path):
+        return
+
+    # Walk through all files
+    for root, dirs, files in os.walk(folder_path, topdown=False):
+        for file in files:
+            full_path = os.path.join(root, file)
+
+            try:
+                size = os.path.getsize(full_path)
+                with open(full_path, "r+b") as f:
+                    f.write(os.urandom(size))
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.remove(full_path)
+            except Exception:
+                pass  # Ignore failures silently
+
+        # Remove empty directories
+        for dir_name in dirs:
+            dir_path = os.path.join(root, dir_name)
+            try:
+                os.rmdir(dir_path)
+            except Exception:
+                pass
+
+    # Finally remove the root folder
+    try:
+        os.rmdir(folder_path)
+    except Exception:
+        pass
+
 
 # =========================================================
 # ENCRYPT
@@ -210,7 +248,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
             outfile.write(tag)
 
         if secure_delete_original:
-           secure_delete(input_path)
+           secure_delete_folder(input_path)
            
         return output_path
 
@@ -285,7 +323,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
             f.write(ciphertext)
 
         if secure_delete_original:
-           secure_delete(input_path)
+           secure_delete_folder(input_path)
 
         return output_path
 
