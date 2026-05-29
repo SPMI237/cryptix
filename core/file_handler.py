@@ -248,7 +248,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
             outfile.write(tag)
 
         if secure_delete_original:
-           secure_delete_folder(input_path)
+           secure_delete(input_path)
            
         return output_path
 
