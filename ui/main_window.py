@@ -855,12 +855,12 @@ class MainWindow(QMainWindow):
         algorithm = self.algorithm_selector.currentData()
 
         self.worker = WorkerThread(
-        "encrypt",
-        self.file_path,
-        self.password_input.text(),
-        keyfile_data,
-        algorithm
-)
+            "encrypt",
+            self.file_path,
+            self.password_input.text(),
+            keyfile_data,
+            algorithm
+        )
         self.worker.secure_delete = self.secure_delete_checkbox.isChecked()
 
         self.worker.progress.connect(self.update_progress)
