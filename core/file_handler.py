@@ -336,7 +336,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 # =========================================================
 
 def decrypt_path(input_path: str, password: str, keyfile_data=None,
-                 progress_callback=None):
+                 progress_callback=None, secure_delete_encrypted=False):
 
     with open(input_path, "rb") as f:
 
@@ -424,9 +424,19 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
         with zipfile.ZipFile(zip_buffer, "r") as zipf:
             extract_path = output_path.replace(".zip", "")
             zipf.extractall(extract_path)
+
+        if secure_delete_encrypted:
+            if os.path.isfile(input_path):
+                secure_delete(input_path)    
+
         return extract_path
 
     else:
         with open(output_path, "wb") as f:
             f.write(plaintext)
+
+        if secure_delete_encrypted:
+            if os.path.isfile(input_path):
+                secure_delete(input_path)
+
         return output_path
