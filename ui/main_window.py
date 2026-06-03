@@ -3,7 +3,7 @@ import os
 from turtle import title
 from utils.helpers import evaluate_password_strength
 from core.logger import read_secure_log, log_event, clear_secure_log
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QGridLayout
 from core.file_handler import encrypt_path, decrypt_path, ALGO_AES, ALGO_CHACHA
 from core.file_handler import encrypt_path, decrypt_path, verify_path
 from core.file_handler import encrypt_path, decrypt_path, verify_path, ALGO_AES, ALGO_CHACHA, AuthenticationError
@@ -115,6 +115,7 @@ class WorkerThread(QThread):
         self.password = password
         self.keyfile_data = keyfile_data
         self.secure_delete = False
+        self.secure_delete_encrypted = False
 
     def run(self):
         try:
@@ -133,7 +134,8 @@ class WorkerThread(QThread):
                     self.file_path,
                     self.password,
                     self.keyfile_data,
-                    progress_callback=self.progress.emit
+                    progress_callback=self.progress.emit,
+                    secure_delete_encrypted=self.secure_delete_encrypted
                 )
 
             elif self.mode == "verify":
@@ -387,30 +389,35 @@ class MainWindow(QMainWindow):
         self.confirm_input.textChanged.connect(self.validate_inputs)
         layout.addWidget(self.confirm_input)
 
-        # Show password toggle
-       # --- Show Password + Secure Delete (Same Row) ---
-        options_row = QHBoxLayout()
-
+        # --- Checkboxes ---
         self.show_password = QCheckBox("Show Password")
         self.show_password.stateChanged.connect(self.toggle_password_visibility)
 
         self.secure_delete_checkbox = QCheckBox("Secure Delete After Encryption")
 
-        options_row.addWidget(self.show_password)
-        options_row.addStretch()  # pushes secure delete to right side
-        options_row.addWidget(self.secure_delete_checkbox)
-
-        layout.addLayout(options_row)
-
-        # Keyfile option
         self.use_keyfile_checkbox = QCheckBox("Use Keyfile")
         self.use_keyfile_checkbox.stateChanged.connect(self.toggle_keyfile_option)
-        layout.addWidget(self.use_keyfile_checkbox)
 
+        self.secure_delete_after_decrypt_checkbox = QCheckBox(
+            "Secure Delete Encrypted File After Decryption"
+        )
+
+# --- Options Grid (2 rows, 2 columns) ---
+        options_grid = QGridLayout()
+        options_grid.addWidget(self.show_password, 0, 0)
+        options_grid.addWidget(self.secure_delete_checkbox, 0, 1)
+        options_grid.addWidget(self.use_keyfile_checkbox, 1, 0)
+        options_grid.addWidget(self.secure_delete_after_decrypt_checkbox, 1, 1)
+
+        layout.addLayout(options_grid)
+
+# Keyfile button
         self.keyfile_button = QPushButton("Select Keyfile")
         self.keyfile_button.setEnabled(False)
         self.keyfile_button.clicked.connect(self.select_keyfile)
         layout.addWidget(self.keyfile_button)
+
+        
 
         # Buttons (Encrypt/Decrypt)
        
@@ -886,6 +893,7 @@ class MainWindow(QMainWindow):
                 keyfile_data = f.read()
 
         self.worker = WorkerThread("decrypt", self.file_path, self.password_input.text(), keyfile_data)
+        self.worker.secure_delete_encrypted = self.secure_delete_after_decrypt_checkbox.isChecked()
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.on_success)
         self.worker.error.connect(self.on_error)
