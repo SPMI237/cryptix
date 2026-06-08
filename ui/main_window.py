@@ -366,23 +366,23 @@ class MainWindow(QMainWindow):
         layout.addWidget(divider1)
 
        # Strength bars (vertical beside password)
-        strength_layout = QVBoxLayout()
-        strength_layout.setSpacing(4)
-
-        self.bar1 = QFrame()
-        self.bar2 = QFrame()
-        self.bar3 = QFrame()
-
-        for bar in (self.bar1, self.bar2, self.bar3):
-         bar.setFixedHeight(6)
-         bar.setFixedWidth(30)
-         bar.setStyleSheet("background-color: lightgray; border-radius: 3px;")
-        strength_layout.addWidget(bar)
-
-        password_row.addLayout(strength_layout)
 
         layout.addLayout(password_row)
+        # --- Password Strength Bar (full width below password) ---
+        # --- Password Strength Bar (short and aligned left) ---
+        self.strength_bar = QProgressBar()
+        self.strength_bar.setRange(0, 100)
+        self.strength_bar.setValue(0)
+        self.strength_bar.setFixedHeight(6)
+        self.strength_bar.setFixedWidth(120)   # Adjust width here (try 100–150)
+        self.strength_bar.setTextVisible(False)
+        self.strength_bar.hide()  # Hidden by default
 
+        strength_row = QHBoxLayout()
+        strength_row.addWidget(self.strength_bar)
+        strength_row.addStretch()  # Keeps it aligned left
+
+        layout.addLayout(strength_row)
         # Confirm password input
         self.confirm_input = QLineEdit()
         self.confirm_input.setPlaceholderText("Confirm Password")
@@ -815,25 +815,18 @@ class MainWindow(QMainWindow):
         password = self.password_input.text()
         confirm_password = self.confirm_input.text()
 
-        self.confirm_input.setStyleSheet("")
-
-        if confirm_password and confirm_password != password:
-           self.confirm_input.setStyleSheet(
-           "border: 2px solid red; border-radius: 4px;"
+        encrypt_valid = (
+            self.file_path
+            and password
+            and password == confirm_password
+            and self.password_input.isEnabled()
         )
 
-        encrypt_valid = (
-        self.file_path
-        and password
-        and password == confirm_password
-        and self.password_input.isEnabled()
-    )
-
         decrypt_valid = (
-        self.file_path
-        and password
-        and self.password_input.isEnabled()
-    )
+            self.file_path
+            and password
+            and self.password_input.isEnabled()
+        )
 
         self.encrypt_button.setEnabled(bool(encrypt_valid))
         self.decrypt_button.setEnabled(bool(decrypt_valid))
@@ -841,17 +834,49 @@ class MainWindow(QMainWindow):
     def update_strength(self):
         password = self.password_input.text()
 
-        for bar in (self.bar1, self.bar2, self.bar3):
-            bar.setStyleSheet("background-color: lightgray; border-radius: 3px;")
+        if not password:
+            self.strength_bar.hide()
+            self.strength_bar.setValue(0)
+            return
 
-        if len(password) >= 1:
-            self.bar1.setStyleSheet("background-color: red; border-radius: 3px;")
+        self.strength_bar.show()
 
-        if len(password) >= 4:
-            self.bar2.setStyleSheet("background-color: orange; border-radius: 3px;")
+        strength = evaluate_password_strength(password)
 
-        if len(password) >= 8:
-            self.bar3.setStyleSheet("background-color: green; border-radius: 3px;")
+    # Map strength to percentage
+        if strength == 0:
+            score = 0
+        elif strength == 1:
+            score = 25
+        elif strength == 2:
+            score = 50
+        elif strength == 3:
+            score = 75
+        else:
+            score = 100
+
+        self.strength_bar.setValue(score)
+
+    # Color selection
+        if score <= 25:
+            color = "#FF3B3B"
+        elif score <= 50:
+            color = "#FFA500"
+        elif score <= 75:
+            color = "#00FF66"
+        else:
+            color = "#00CC00"
+
+        self.strength_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: #131822;
+                border: 1px solid #262F3F;
+                border-radius: 2px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+            }}
+        """)
      
     def toggle_password_visibility(self):
      mode = (
