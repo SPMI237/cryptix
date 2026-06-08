@@ -1053,7 +1053,10 @@ class MainWindow(QMainWindow):
         self.keyfile_button.setText("Select Keyfile")
         self.keyfile_button.setEnabled(False)
 
-        QMessageBox.information(self, "Success", "Operation completed successfully!")
+        if self.worker.mode == "verify":
+            QMessageBox.information(self, "Verification Result", "File integrity verified successfully.")
+        else:
+            QMessageBox.information(self, "Success", "Operation completed successfully!")
 
     def on_error(self, message):
         self.progress_bar.setVisible(False)
@@ -1068,8 +1071,10 @@ class MainWindow(QMainWindow):
             if self.failed_attempts >= 3:
                 self.trigger_lockout()
 
-        QMessageBox.critical(self, "Error", str(message))
-
+        if self.worker.mode == "verify":
+            QMessageBox.critical(self, "Verification Failed", "Integrity check failed — file may be tampered or password incorrect.")
+        else:
+            QMessageBox.critical(self, "Error", str(message))
         # Reset keyfile UI & state
         self.keyfile_path = None
         self.use_keyfile_checkbox.setChecked(False)
