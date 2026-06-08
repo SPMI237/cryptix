@@ -1,4 +1,5 @@
 import re
+import math
 
 def evaluate_password_strength(password: str) -> int:
     """
@@ -7,34 +8,43 @@ def evaluate_password_strength(password: str) -> int:
     1 = weak
     2 = medium
     3 = strong
+    4 = very strong
     """
 
     if not password:
         return 0
 
+    score = 0
     length = len(password)
 
-    # Count character types
-    types = 0
-    if re.search(r"[a-z]", password):
-        types += 1
-    if re.search(r"[A-Z]", password):
-        types += 1
-    if re.search(r"[0-9]", password):
-        types += 1
-    if re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        types += 1
+    # Length contribution
+    if length >= 8:
+        score += 1
+    if length >= 12:
+        score += 1
+    if length >= 16:
+        score += 1
 
-    # Weak
+    # Character variety
+    if re.search(r"[a-z]", password):
+        score += 1
+    if re.search(r"[A-Z]", password):
+        score += 1
+    if re.search(r"[0-9]", password):
+        score += 1
+    if re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        score += 1
+
+    # Weak if too short
     if length < 6:
         return 1
 
-    # Medium
-    if length >= 6 and types >= 2:
+    # Map score to strength levels
+    if score <= 2:
+        return 1
+    elif score <= 4:
         return 2
-
-    # Strong
-    if length >= 8 and types >= 3:
+    elif score <= 6:
         return 3
-
-    return 1
+    else:
+        return 4
