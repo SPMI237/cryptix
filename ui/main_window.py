@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         self.apply_dark_theme() # Start with dark theme
+        self.setAcceptDrops(True)
 
     def show_audit_log(self):
         log_content = read_secure_log()
@@ -620,6 +621,22 @@ class MainWindow(QMainWindow):
             self.apply_dark_theme()
         else:
             self.apply_light_theme()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if urls:
+            file_path = urls[0].toLocalFile()
+
+            if os.path.exists(file_path):
+                self.file_path = file_path
+                self.file_label.setText(f"Selected: {os.path.basename(file_path)}")
+                self.validate_inputs()
 
     def apply_dark_theme(self):
         self.setStyleSheet("""
