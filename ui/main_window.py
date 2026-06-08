@@ -375,6 +375,11 @@ class MainWindow(QMainWindow):
         self.password_input.textChanged.connect(self.update_strength)
 
         password_row.addWidget(self.password_input)
+        self.generate_password_button = QPushButton("🔑")
+        self.generate_password_button.setFixedWidth(40)
+        self.generate_password_button.setToolTip("Generate Secure Password")
+        self.generate_password_button.clicked.connect(self.generate_password)
+        password_row.addWidget(self.generate_password_button)
         divider1 = QFrame()
         divider1.setFrameShape(QFrame.Shape.HLine)
         divider1.setStyleSheet("background-color: #262F3F; max-height: 1px;")
@@ -475,6 +480,21 @@ class MainWindow(QMainWindow):
         self.update_algorithm_badge()
 
         self.drag_overlay.resize(self.centralWidget().size())
+
+    def generate_password(self):
+        import secrets
+        import string
+
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
+        password = ''.join(secrets.choice(alphabet) for _ in range(20))
+
+        self.password_input.setText(password)
+        self.confirm_input.setText(password)
+
+    # Make password visible temporarily
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        self.confirm_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        self.show_password.setChecked(True)
 
     def show_about_dialog(self):
        dialog = QDialog(self)
