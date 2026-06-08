@@ -399,7 +399,7 @@ class MainWindow(QMainWindow):
         self.use_keyfile_checkbox.stateChanged.connect(self.toggle_keyfile_option)
 
         self.secure_delete_after_decrypt_checkbox = QCheckBox(
-            "Secure Delete Encrypted File After Decryption"
+            "Secure Delete After Decryption"
         )
 
 # --- Options Grid (2 rows, 2 columns) ---
