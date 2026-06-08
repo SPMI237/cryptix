@@ -179,6 +179,8 @@ class MainWindow(QMainWindow):
         self.failed_attempts = 0
         self.lock_seconds_remaining = 0
         self.is_locked = False
+
+        self.drag_active = False
         
         self.lock_timer = QTimer()
         self.lock_timer.timeout.connect(self.update_countdown)
@@ -224,6 +226,19 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        # --- Drag Overlay ---
+        self.drag_overlay = QLabel("Drop File Here", central_widget)
+        self.drag_overlay.setAlignment(Qt.AlignCenter)
+        self.drag_overlay.setStyleSheet("""
+            QLabel {
+                background-color: rgba(11, 15, 25, 180);
+                border: 2px dashed #00F0FF;
+                color: #00F0FF;
+                font-size: 22px;
+                font-weight: bold;
+            }
+        """)
+        self.drag_overlay.hide()
 
         layout = QVBoxLayout()
         layout.setSpacing(12)
@@ -459,6 +474,8 @@ class MainWindow(QMainWindow):
 
         self.update_algorithm_badge()
 
+        self.drag_overlay.resize(self.centralWidget().size())
+
     def show_about_dialog(self):
        dialog = QDialog(self)
        dialog.setWindowTitle("About Cryptix")
@@ -625,18 +642,42 @@ class MainWindow(QMainWindow):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+            self.drag_active = True
+            self.setStyleSheet(self.styleSheet() + """
+                QWidget {
+                    border: 2px dashed #00F0FF;
+                }
+            """)
         else:
             event.ignore()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self.drag_overlay.resize(self.centralWidget().size())
+            self.drag_overlay.raise_()   # ✅ Bring overlay to front
+            self.drag_overlay.show()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self.drag_overlay.hide()
 
     def dropEvent(self, event):
         urls = event.mimeData().urls()
         if urls:
             file_path = urls[0].toLocalFile()
-
             if os.path.exists(file_path):
                 self.file_path = file_path
                 self.file_label.setText(f"Selected: {os.path.basename(file_path)}")
                 self.validate_inputs()
+
+        self.drag_overlay.hide()        
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "drag_overlay"):
+            self.drag_overlay.resize(self.centralWidget().size()) 
 
     def apply_dark_theme(self):
         self.setStyleSheet("""
