@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.0 — Initial Public Release
+## v1.1.0 — Initial Public Release
 
 ### Core Cryptography
 - AES-256-GCM authenticated encryption
@@ -26,4 +26,4 @@
 - Security policy
 - File format specification
 - Third-party license transparency
-- Custom Source-Available License v1.0
+- Custom Source-Available License v1.1
