@@ -30,6 +30,21 @@ Cryptix is built as a modular, security‑oriented platform rather than a simple
 - ✅ Keyfile support (optional second factor)  
 - ✅ Dark mode UI (PySide6)  
 
+# What's New in v1.1.0
+
+### Usability Improvements
+-✅ Drag-and-drop file and folder support with visual overlay feedback
+-✅ Built-in secure password generator
+-✅ Multi-file batch encryption, decryption, and verification
+-✅ Improved password strength indicator (compact, dynamic progress bar)
+-✅ Post-decryption secure delete option
+-✅ Refined single-file success messaging for batch operations
+
+### Workflow Enhancements
+-✅ Consistent batch behavior across encrypt, decrypt, and verify
+-✅ Improved user feedback and UI clarity
+-✅ Strengthened folder secure deletion handling
+
 ---
 
 # Architecture Overview
