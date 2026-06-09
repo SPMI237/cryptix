@@ -132,7 +132,10 @@ class WorkerThread(QThread):
                             secure_delete_original=self.secure_delete
                         )
                         results.append(result)
-                    result = f"{len(results)} files encrypted successfully."
+                    if len(results) == 1:
+                        result = f"{os.path.basename(self.file_path[0])} encrypted successfully."
+                    else:
+                        result = f"{len(results)} files encrypted successfully."
                 else:
                     result = encrypt_path(
                         self.file_path,
@@ -155,7 +158,10 @@ class WorkerThread(QThread):
                             secure_delete_encrypted=self.secure_delete_encrypted
                         )
                         results.append(result)
-                    result = f"{len(results)} files decrypted successfully."
+                        if len(results) == 1:
+                            result = f"{os.path.basename(self.file_path[0])} decrypted successfully."
+                        else:
+                            result = f"{len(results)} files decrypted successfully."
                 else:
                     result = decrypt_path(
                         self.file_path,
@@ -176,7 +182,10 @@ class WorkerThread(QThread):
                             progress_callback=self.progress.emit
                         )
                         results.append(result)
-                    result = f"{len(results)} files verified successfully."
+                    if len(results) == 1:
+                        result = f"{os.path.basename(self.file_path[0])} verified successfully."
+                    else:
+                        result = f"{len(results)} files verified successfully."
                 else:
                     result = verify_path(
                         self.file_path,
