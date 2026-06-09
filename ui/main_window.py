@@ -120,31 +120,70 @@ class WorkerThread(QThread):
     def run(self):
         try:
             if self.mode == "encrypt":
-                result = encrypt_path(
-                    self.file_path,
-                    self.password,
-                    self.keyfile_data,
-                    self.algorithm,
-                    progress_callback=self.progress.emit,
-                    secure_delete_original=self.secure_delete
-                )
+                if isinstance(self.file_path, list):
+                    results = []
+                    for path in self.file_path:
+                        result = encrypt_path(
+                            path,
+                            self.password,
+                            self.keyfile_data,
+                            self.algorithm,
+                            progress_callback=self.progress.emit,
+                            secure_delete_original=self.secure_delete
+                        )
+                        results.append(result)
+                    result = f"{len(results)} files encrypted successfully."
+                else:
+                    result = encrypt_path(
+                        self.file_path,
+                        self.password,
+                        self.keyfile_data,
+                        self.algorithm,
+                        progress_callback=self.progress.emit,
+                        secure_delete_original=self.secure_delete
+                    )
 
             elif self.mode == "decrypt":
-                result = decrypt_path(
-                    self.file_path,
-                    self.password,
-                    self.keyfile_data,
-                    progress_callback=self.progress.emit,
-                    secure_delete_encrypted=self.secure_delete_encrypted
-                )
+                if isinstance(self.file_path, list):
+                    results = []
+                    for path in self.file_path:
+                        result = decrypt_path(
+                            path,
+                            self.password,
+                            self.keyfile_data,
+                            progress_callback=self.progress.emit,
+                            secure_delete_encrypted=self.secure_delete_encrypted
+                        )
+                        results.append(result)
+                    result = f"{len(results)} files decrypted successfully."
+                else:
+                    result = decrypt_path(
+                        self.file_path,
+                        self.password,
+                        self.keyfile_data,
+                        progress_callback=self.progress.emit,
+                        secure_delete_encrypted=self.secure_delete_encrypted
+                    )
 
             elif self.mode == "verify":
-                result = verify_path(
-                    self.file_path,
-                    self.password,
-                    self.keyfile_data,
-                    progress_callback=self.progress.emit
-                )
+                if isinstance(self.file_path, list):
+                    results = []
+                    for path in self.file_path:
+                        result = verify_path(
+                            path,
+                            self.password,
+                            self.keyfile_data,
+                            progress_callback=self.progress.emit
+                        )
+                        results.append(result)
+                    result = f"{len(results)} files verified successfully."
+                else:
+                    result = verify_path(
+                        self.file_path,
+                        self.password,
+                        self.keyfile_data,
+                        progress_callback=self.progress.emit
+                    )
 
             self.finished.emit(result)
 
@@ -1121,10 +1160,13 @@ class MainWindow(QMainWindow):
         )
 
     def select_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File")
-        if file_path:
-            self.file_path = file_path
-            self.file_label.setText(f"Selected file: {os.path.basename(file_path)}")
+        file_paths, _ = QFileDialog.getOpenFileNames(self, "Select Files")
+        if file_paths:
+            self.file_path = file_paths
+            if len(file_paths) == 1:
+                self.file_label.setText(f"Selected file: {os.path.basename(file_paths[0])}")
+            else:
+                self.file_label.setText(f"Selected {len(file_paths)} files")
             self.validate_inputs()
 
 
@@ -1137,15 +1179,18 @@ class MainWindow(QMainWindow):
 
 
     def select_image(self):
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_paths, _ = QFileDialog.getOpenFileNames(
             self,
-            "Select Image",
+            "Select Images",
             "",
             "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
         )
-        if file_path:
-            self.file_path = file_path
-            self.file_label.setText(f"Selected image: {os.path.basename(file_path)}")
+        if file_paths:
+            self.file_path = file_paths
+            if len(file_paths) == 1:
+                self.file_label.setText(f"Selected image: {os.path.basename(file_paths[0])}")
+            else:
+                self.file_label.setText(f"Selected {len(file_paths)} images")
             self.validate_inputs()
 
     
