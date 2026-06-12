@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.2.0 — Professionalization & System Integration Update
+
+### Distribution Improvements
+- Windows installer with desktop and Start Menu integration
+- `.cryptix` file association support
+- Proper application icon integration
+
+### System Integration
+- Audit logs moved to user AppData for installed version compatibility
+- Automatic GitHub update checker (non-intrusive)
+
+### Usability & Transparency
+- Performance benchmark mode (AES‑256‑GCM, ChaCha20‑Poly1305, Argon2id)
+- Persistent user settings (theme, algorithm, secure delete preferences)
+
+### Stability
+- Fixed startup crash when opening encrypted files via file association
+- Improved installer configuration
+
 ## v1.1.0 — Usability & Workflow Enhancement Update
 
 ### New Features
