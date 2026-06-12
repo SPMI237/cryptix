@@ -1,5 +1,6 @@
 from email.mime import message
 import os
+import requests
 from turtle import title
 from utils.helpers import evaluate_password_strength
 from core.logger import read_secure_log, log_event, clear_secure_log
@@ -237,6 +238,7 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         self.apply_dark_theme() # Start with dark theme
+        QTimer.singleShot(2000, self.check_for_updates)
         self.setAcceptDrops(True)
 
     def show_audit_log(self):
@@ -605,6 +607,32 @@ class MainWindow(QMainWindow):
        layout.addWidget(close_button)
 
        dialog.exec()
+
+    def check_for_updates(self):
+        try:
+            response = requests.get(
+                "https://api.github.com/repos/SPMI237/cryptix/releases/latest",
+                timeout=5
+            )
+
+            if response.status_code == 200:
+                latest_version = response.json()["tag_name"].lstrip("v")
+                current_version = self.version
+
+                if latest_version != current_version:
+                    reply = QMessageBox.information(
+                        self,
+                        "Update Available",
+                        f"A new version of Cryptix (v{latest_version}) is available.\n\nVisit download page?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+
+                    if reply == QMessageBox.StandardButton.Yes:
+                        import webbrowser
+                        webbrowser.open("https://github.com/SPMI237/cryptix/releases")
+
+        except Exception:
+            pass  # Fail silently if no internet or error   
 
     def set_ui_state(self, state: str):
         """

@@ -3,3 +3,4 @@ argon2-cffi
 pyside6
 pillow
 pyinstaller
+requests
