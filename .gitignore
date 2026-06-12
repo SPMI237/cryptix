@@ -39,4 +39,8 @@ Thumbs.db
 test_*
 sample_*
 
+# Installer output
+installer/*.exe
+installer/Output/
+
 CRYPTIX_audit.log.enc
