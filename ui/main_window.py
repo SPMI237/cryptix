@@ -411,9 +411,6 @@ class MainWindow(QMainWindow):
 
         # Selected target display
         self.file_label = QLabel("No target selected")
-        if self.file_path:
-            self.file_label.setText(f"Selected: {os.path.basename(self.file_path)}")
-            self.validate_inputs()
         self.file_label.setStyleSheet("color: #A0AEC0; font-style: italic;")
         layout.addWidget(self.file_label)
         # --------------------------
@@ -529,6 +526,10 @@ class MainWindow(QMainWindow):
         self.view_log_button = QPushButton("View Secure Audit Log")
         self.view_log_button.clicked.connect(self.show_audit_log)
         layout.addWidget(self.view_log_button)
+# Handle file passed via file association
+        if self.file_path:
+            self.file_label.setText(f"Selected: {os.path.basename(self.file_path)}")
+            self.validate_inputs()
 
         self.update_algorithm_badge()
 
