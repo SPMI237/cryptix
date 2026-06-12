@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QComboBox, QGridLayout
 from core.file_handler import encrypt_path, decrypt_path, ALGO_AES, ALGO_CHACHA
 from core.file_handler import encrypt_path, decrypt_path, verify_path
 from core.file_handler import encrypt_path, decrypt_path, verify_path, ALGO_AES, ALGO_CHACHA, AuthenticationError
+from utils.settings import load_settings, save_settings
 
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -229,6 +230,7 @@ class MainWindow(QMainWindow):
        
 
         self.file_path = None
+        self.settings = load_settings()
         if initial_file and os.path.isfile(initial_file):
             self.file_path = initial_file
         self.keyfile_path = None # New: keyfile_path
@@ -242,7 +244,6 @@ class MainWindow(QMainWindow):
         self.lock_timer.timeout.connect(self.update_countdown)
 
         self.init_ui()
-        self.apply_dark_theme() # Start with dark theme
         QTimer.singleShot(2000, self.check_for_updates)
         self.setAcceptDrops(True)
 
@@ -501,7 +502,11 @@ class MainWindow(QMainWindow):
         self.keyfile_button.clicked.connect(self.select_keyfile)
         layout.addWidget(self.keyfile_button)
 
-        
+        # Persist settings when changed
+        self.theme_toggle.stateChanged.connect(self.persist_settings)
+        self.algorithm_selector.currentIndexChanged.connect(self.persist_settings)
+        self.secure_delete_checkbox.stateChanged.connect(self.persist_settings)
+        self.secure_delete_after_decrypt_checkbox.stateChanged.connect(self.persist_settings)
 
         # Buttons (Encrypt/Decrypt)
        
@@ -545,6 +550,28 @@ class MainWindow(QMainWindow):
             self.validate_inputs()
 
         self.update_algorithm_badge()
+
+        # Apply saved settings
+        if self.settings.get("dark_mode", True):
+            self.theme_toggle.setChecked(True)
+            self.apply_dark_theme()
+        else:
+            self.theme_toggle.setChecked(False)
+            self.apply_light_theme()
+
+        saved_algorithm = self.settings.get("algorithm")
+        if saved_algorithm:
+            index = self.algorithm_selector.findData(saved_algorithm)
+            if index != -1:
+                self.algorithm_selector.setCurrentIndex(index)
+
+        self.secure_delete_checkbox.setChecked(
+            self.settings.get("secure_delete_encrypt", False)
+        )
+
+        self.secure_delete_after_decrypt_checkbox.setChecked(
+            self.settings.get("secure_delete_decrypt", False)
+        )
 
         self.drag_overlay.resize(self.centralWidget().size())
 
@@ -1035,6 +1062,15 @@ class MainWindow(QMainWindow):
     )
      self.password_input.setEchoMode(mode)
      self.confirm_input.setEchoMode(mode)
+
+    def persist_settings(self):
+        data = {
+            "dark_mode": self.theme_toggle.isChecked(),
+            "algorithm": self.algorithm_selector.currentData(),
+            "secure_delete_encrypt": self.secure_delete_checkbox.isChecked(),
+            "secure_delete_decrypt": self.secure_delete_after_decrypt_checkbox.isChecked()
+        }
+        save_settings(data) 
     # =====================================================
     # Worker Thread Management
     # =====================================================
