@@ -9,7 +9,15 @@ from Crypto.Cipher import AES
 # This keeps logging secure and transparent without requiring user input.
 LOG_SECRET = b"CRYPTIX_NOVA_INTERNAL_AUDIT_SECRET_KEY_2026"
 LOG_KEY = hashlib.sha256(LOG_SECRET).digest()
-LOG_FILE = "CRYPTIX_audit.log.enc"
+
+# Store logs in AppData so installed version can write safely
+APP_DATA_DIR = os.path.join(
+    os.environ.get("APPDATA") or os.path.expanduser("~"),
+    "Cryptix"
+)
+os.makedirs(APP_DATA_DIR, exist_ok=True)
+
+LOG_FILE = os.path.join(APP_DATA_DIR, "CRYPTIX_audit.log.enc")
 
 def clear_secure_log():
     """

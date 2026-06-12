@@ -202,7 +202,7 @@ class WorkerThread(QThread):
 # Main Window (CRYPTIX Application)
 # =========================================================
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, initial_file=None):
         super().__init__()
 
         self.version = "1.1.0"
@@ -223,6 +223,8 @@ class MainWindow(QMainWindow):
        
 
         self.file_path = None
+        if initial_file and os.path.isfile(initial_file):
+            self.file_path = initial_file
         self.keyfile_path = None # New: keyfile_path
         self.failed_attempts = 0
         self.lock_seconds_remaining = 0
@@ -409,6 +411,9 @@ class MainWindow(QMainWindow):
 
         # Selected target display
         self.file_label = QLabel("No target selected")
+        if self.file_path:
+            self.file_label.setText(f"Selected: {os.path.basename(self.file_path)}")
+            self.validate_inputs()
         self.file_label.setStyleSheet("color: #A0AEC0; font-style: italic;")
         layout.addWidget(self.file_label)
         # --------------------------
