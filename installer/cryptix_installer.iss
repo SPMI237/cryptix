@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Cryptix"
-#define MyAppVersion "1.1"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Michel Idriss"
 #define MyAppURL "https://github.com/SPMI237/cryptix"
 #define MyAppExeName "Cryptix.exe"
@@ -37,7 +37,7 @@ ChangesAssociations=yes
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
-OutputBaseFilename=Cryptix_Installer_v1.1.0
+OutputBaseFilename=Cryptix_Installer_v1.2.0
 SolidCompression=yes
 WizardStyle=modern dynamic
 
