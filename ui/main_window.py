@@ -120,6 +120,11 @@ class WorkerThread(QThread):
 
     def run(self):
         try:
+            if self.mode == "benchmark":
+                from utils.benchmark import run_benchmark
+                result = run_benchmark()
+                self.finished.emit(result)
+                return
             if self.mode == "encrypt":
                 if isinstance(self.file_path, list):
                     results = []
@@ -219,7 +224,7 @@ class MainWindow(QMainWindow):
 
         icon_path = os.path.join(base_path, "cryptix.ico")
         self.setWindowIcon(QIcon(icon_path))
-        self.setGeometry(200, 200, 600, 520) # Adjusted height
+        self.setGeometry(200, 200, 650, 600) # Adjusted height
 
        
 
@@ -351,8 +356,8 @@ class MainWindow(QMainWindow):
         self.settings_panel.setObjectName("settings_hud") 
         self.settings_panel.setVisible(False)
         self.settings_panel.setParent(self)
-        self.settings_panel.setFixedWidth(250)
-        self.settings_panel.setFixedHeight(150)
+        self.settings_panel.setFixedWidth(300)
+        self.settings_panel.setFixedHeight(260)
 
         settings_layout = QVBoxLayout()
         self.settings_panel.setLayout(settings_layout)
@@ -374,8 +379,14 @@ class MainWindow(QMainWindow):
 
     # About Button
         self.about_button = QPushButton("About Cryptix")
+        self.about_button.setStyleSheet("color: #00F0FF;")
         self.about_button.clicked.connect(self.show_about_dialog)
         settings_layout.addWidget(self.about_button)
+
+        self.benchmark_button = QPushButton("Run Performance Benchmark")
+        self.benchmark_button.setStyleSheet("color: #00F0FF;")
+        self.benchmark_button.clicked.connect(self.start_benchmark)
+        settings_layout.addWidget(self.benchmark_button)
         # Subtitle
         subtitle = QLabel("AES‑256 GCM Secure Encryption")
         subtitle.setStyleSheet("color: gray; font-size: 11px;")
@@ -536,6 +547,12 @@ class MainWindow(QMainWindow):
         self.update_algorithm_badge()
 
         self.drag_overlay.resize(self.centralWidget().size())
+
+    def start_benchmark(self):
+        self.worker = WorkerThread("benchmark", None, None)
+        self.worker.finished.connect(self.on_benchmark_result)
+        self.worker.error.connect(self.on_error)
+        self.worker.start()    
 
     def generate_password(self):
         import secrets
@@ -741,17 +758,6 @@ class MainWindow(QMainWindow):
         else:
             self.apply_light_theme()
 
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-            self.drag_active = True
-            self.setStyleSheet(self.styleSheet() + """
-                QWidget {
-                    border: 2px dashed #00F0FF;
-                }
-            """)
-        else:
-            event.ignore()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -1107,6 +1113,9 @@ class MainWindow(QMainWindow):
         self.worker.error.connect(self.on_error)
 
         self.worker.start()
+
+    def on_benchmark_result(self, result):
+        QMessageBox.information(self, "Benchmark Complete", result)    
 
     def update_progress(self, value):
         self.progress_bar.setVisible(True)
