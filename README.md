@@ -1,5 +1,8 @@
-# Cryptix v1.1.0
-Current Stable Version: v1.1.0
+# Cryptix v1.2.0
+
+Secure local file encryption for Windows with AES‑256‑GCM, ChaCha20‑Poly1305, and Argon2id.
+
+Current Stable Version: v1.2.0
 Multi‑Algorithm Authenticated Encryption Suite
 Cryptix is a security‑focused desktop encryption application designed to provide structured, authenticated local file protection using modern cryptographic primitives.
 
@@ -30,20 +33,27 @@ Cryptix is built as a modular, security‑oriented platform rather than a simple
 - ✅ Keyfile support (optional second factor)  
 - ✅ Dark mode UI (PySide6)  
 
-# What's New in v1.1.0
+# What's New in v1.2.0
 
 ### Usability Improvements
--✅ Drag-and-drop file and folder support with visual overlay feedback
--✅ Built-in secure password generator
--✅ Multi-file batch encryption, decryption, and verification
--✅ Improved password strength indicator (compact, dynamic progress bar)
--✅ Post-decryption secure delete option
--✅ Refined single-file success messaging for batch operations
+- ✅ Drag-and-drop file and folder support with visual overlay feedback
+- ✅ Built-in secure password generator
+- ✅ Multi-file batch encryption, decryption, and verification
+- ✅ Improved password strength indicator (compact, dynamic progress bar)
+- ✅ Post-decryption secure delete option
+- ✅ Refined single-file success messaging for batch operations
 
 ### Workflow Enhancements
--✅ Consistent batch behavior across encrypt, decrypt, and verify
--✅ Improved user feedback and UI clarity
--✅ Strengthened folder secure deletion handling
+- ✅ Consistent batch behavior across encrypt, decrypt, and verify
+- ✅ Improved user feedback and UI clarity
+- ✅ Strengthened folder secure deletion handling
+
+### System Integration
+- ✅ Windows installer with desktop and Start Menu integration
+- ✅ `.cryptix` file association (double‑click support)
+- ✅ Automatic GitHub update checker
+- ✅ Persistent user settings (theme, algorithm, secure delete preferences)
+- ✅ Performance benchmark mode
 
 ---
 
@@ -131,6 +141,16 @@ See: `THREAT_MODEL.md` for full threat model.
 
 ---
 
+# Download (Windows)
+
+1. Go to the **Releases** section.
+2. Download the latest installer:
+   `Cryptix_Installer_v1.2.0.exe`
+3. Run the installer.
+4. Launch Cryptix from Desktop or Start Menu.
+
+`.cryptix` files can be opened directly by double‑clicking.
+
 # Installation
 
 Clone the repository:
@@ -190,9 +210,9 @@ Cryptix reduces risk but does not eliminate all attack vectors.
 
 # License
 
-Cryptix is distributed under the Business Source License (BSL) 1.1.
+Cryptix is distributed under the Cryptix Source‑Available License v1.0.
 
-Source code is available for review, audit, and non‑commercial use.
+Source code is available for audit, educational use, and non‑commercial use.
 
 See `LICENSE` for full terms.
 
