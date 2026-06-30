@@ -121,6 +121,14 @@ def secure_delete(file_path: str):
     size = os.path.getsize(file_path)
 
     with open(file_path, "r+b") as f:
+        # First overwrite
+        f.seek(0)
+        f.write(os.urandom(size))
+        f.flush()
+        os.fsync(f.fileno())
+
+        # Second overwrite
+        f.seek(0)
         f.write(os.urandom(size))
         f.flush()
         os.fsync(f.fileno())
@@ -144,6 +152,12 @@ def secure_delete_folder(folder_path: str):
             try:
                 size = os.path.getsize(full_path)
                 with open(full_path, "r+b") as f:
+                    f.seek(0)
+                    f.write(os.urandom(size))
+                    f.flush()
+                    os.fsync(f.fileno())
+
+                    f.seek(0)
                     f.write(os.urandom(size))
                     f.flush()
                     os.fsync(f.fileno())
