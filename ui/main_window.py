@@ -201,6 +201,8 @@ class WorkerThread(QThread):
                         progress_callback=self.progress.emit
                     )
 
+            self.password = None
+
             self.finished.emit(result)
 
         except Exception as e:
@@ -1192,7 +1194,8 @@ class MainWindow(QMainWindow):
          # Secure wipe password fields
         self.password_input.clear()
         self.confirm_input.clear()
-        self.worker.password = None
+        if hasattr(self.worker, "password"):
+            self.worker.password = None
         
        # Reset keyfile UI & state
         self.keyfile_path = None
