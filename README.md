@@ -193,6 +193,17 @@ The executable will be generated in the `dist/` directory.
 
 ---
 
+# Security & Trust
+
+Cryptix is built on the principle of transparency. We do not use hidden mechanisms or legacy cryptography.
+
+For detailed technical information, please review our documentation:
+- [Platform Vision](docs/PLATFORM_VISION.md)
+- [Security Review](docs/SECURITY_REVIEW_v1.2.md)
+- [Release Policy](docs/RELEASE_POLICY.md)
+- [File Format Specification](FILE_FORMAT.md)
+- [Threat Model](THREAT_MODEL.md)
+
 # Security Notice
 
 Cryptix uses modern authenticated encryption primitives and memory‑hard key derivation.
