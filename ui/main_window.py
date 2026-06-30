@@ -1,13 +1,18 @@
-from email.mime import message
+
 import os
 import requests
-from turtle import title
 from utils.helpers import evaluate_password_strength
 from core.logger import read_secure_log, log_event, clear_secure_log
 from PySide6.QtWidgets import QComboBox, QGridLayout
-from core.file_handler import encrypt_path, decrypt_path, ALGO_AES, ALGO_CHACHA
-from core.file_handler import encrypt_path, decrypt_path, verify_path
-from core.file_handler import encrypt_path, decrypt_path, verify_path, ALGO_AES, ALGO_CHACHA, AuthenticationError
+from core.file_handler import (
+    encrypt_path,
+    decrypt_path,
+    verify_path,
+    ALGO_AES,
+    ALGO_CHACHA,
+    AuthenticationError
+)
+
 from utils.settings import load_settings, save_settings
 
 from PySide6.QtWidgets import (
@@ -126,11 +131,14 @@ class WorkerThread(QThread):
                 result = run_benchmark()
                 self.finished.emit(result)
                 return
+
+            result = None
+
             if self.mode == "encrypt":
                 if isinstance(self.file_path, list):
                     results = []
                     for path in self.file_path:
-                        result = encrypt_path(
+                        r = encrypt_path(
                             path,
                             self.password,
                             self.keyfile_data,
@@ -138,7 +146,8 @@ class WorkerThread(QThread):
                             progress_callback=self.progress.emit,
                             secure_delete_original=self.secure_delete
                         )
-                        results.append(result)
+                        results.append(r)
+
                     if len(results) == 1:
                         result = f"{os.path.basename(self.file_path[0])} encrypted successfully."
                     else:
@@ -157,18 +166,19 @@ class WorkerThread(QThread):
                 if isinstance(self.file_path, list):
                     results = []
                     for path in self.file_path:
-                        result = decrypt_path(
+                        r = decrypt_path(
                             path,
                             self.password,
                             self.keyfile_data,
                             progress_callback=self.progress.emit,
                             secure_delete_encrypted=self.secure_delete_encrypted
                         )
-                        results.append(result)
-                        if len(results) == 1:
-                            result = f"{os.path.basename(self.file_path[0])} decrypted successfully."
-                        else:
-                            result = f"{len(results)} files decrypted successfully."
+                        results.append(r)
+
+                    if len(results) == 1:
+                        result = f"{os.path.basename(self.file_path[0])} decrypted successfully."
+                    else:
+                        result = f"{len(results)} files decrypted successfully."
                 else:
                     result = decrypt_path(
                         self.file_path,
@@ -182,13 +192,14 @@ class WorkerThread(QThread):
                 if isinstance(self.file_path, list):
                     results = []
                     for path in self.file_path:
-                        result = verify_path(
+                        r = verify_path(
                             path,
                             self.password,
                             self.keyfile_data,
                             progress_callback=self.progress.emit
                         )
-                        results.append(result)
+                        results.append(r)
+
                     if len(results) == 1:
                         result = f"{os.path.basename(self.file_path[0])} verified successfully."
                     else:
@@ -201,6 +212,7 @@ class WorkerThread(QThread):
                         progress_callback=self.progress.emit
                     )
 
+            # Clear sensitive reference
             self.password = None
 
             self.finished.emit(result)
