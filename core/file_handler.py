@@ -8,14 +8,13 @@ from Crypto.Cipher import AES, ChaCha20_Poly1305
 
 import config
 from cryptix_engine.kdf import generate_salt, derive_key
+from cryptix_engine.container import build_header
+from cryptix_engine.exceptions import AuthenticationError
 
 
 # =========================================================
 # CUSTOM EXCEPTIONS
 # =========================================================
-class AuthenticationError(Exception):
-    """Raised when password/keyfile is wrong or file is tampered."""
-    pass
 
 
 ALGO_AES = 1
@@ -69,13 +68,8 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
     else:
         raise ValueError("Unsupported algorithm")
 
-    header = (
-        config.MAGIC_HEADER
-        + config.VERSION.to_bytes(1, "big")
-        + algorithm.to_bytes(1, "big")
-        + salt
-        + iv
-    )
+
+    header = build_header(algorithm, salt, iv)
 
     filename_length_bytes = len(filename_bytes).to_bytes(4, "big")
     aad = header + filename_length_bytes + filename_bytes
@@ -218,13 +212,8 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         else:
             raise ValueError("Unsupported algorithm")
 
-        header = (
-            config.MAGIC_HEADER
-            + config.VERSION.to_bytes(1, "big")
-            + algorithm.to_bytes(1, "big")
-            + salt
-            + iv
-        )
+
+        header = build_header(algorithm, salt, iv)
 
         filename_bytes = original_name.encode("utf-8")
         filename_length = len(filename_bytes).to_bytes(4, "big")
@@ -305,13 +294,8 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         else:
             raise ValueError("Unsupported algorithm")
 
-        header = (
-            config.MAGIC_HEADER
-            + config.VERSION.to_bytes(1, "big")
-            + algorithm.to_bytes(1, "big")
-            + salt
-            + iv
-        )
+
+        header = build_header(algorithm, salt, iv)
 
         filename_bytes = original_name.encode("utf-8")
         filename_length = len(filename_bytes).to_bytes(4, "big")
@@ -389,13 +373,8 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
     else:
         raise ValueError("Unsupported algorithm")
 
-    header = (
-        config.MAGIC_HEADER
-        + config.VERSION.to_bytes(1, "big")
-        + algorithm.to_bytes(1, "big")
-        + salt
-        + iv
-    )
+
+    header = build_header(algorithm, salt, iv)
 
     filename_length_bytes = len(filename_bytes).to_bytes(4, "big")
     aad = header + filename_length_bytes + filename_bytes
