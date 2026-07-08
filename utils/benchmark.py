@@ -1,7 +1,7 @@
 import time
 import os
 from Crypto.Cipher import AES, ChaCha20_Poly1305
-from core.kdf import derive_key, generate_salt
+from cryptix_engine.kdf import derive_key, generate_salt
 
 
 def run_benchmark():

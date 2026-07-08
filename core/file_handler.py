@@ -7,7 +7,7 @@ import zipfile
 from Crypto.Cipher import AES, ChaCha20_Poly1305
 
 import config
-from core.kdf import generate_salt, derive_key
+from cryptix_engine.kdf import generate_salt, derive_key
 
 
 # =========================================================
