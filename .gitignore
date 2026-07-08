@@ -36,7 +36,6 @@ Thumbs.db
 .idea/
 
 # Test files
-test_*
 sample_*
 
 # Installer output
