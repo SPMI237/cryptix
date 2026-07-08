@@ -8,7 +8,7 @@ from Crypto.Cipher import AES, ChaCha20_Poly1305
 
 import config
 from cryptix_engine.kdf import generate_salt, derive_key
-from cryptix_engine.container import build_header
+from cryptix_engine.container import build_header, parse_header
 from cryptix_engine.exceptions import AuthenticationError
 
 
@@ -32,34 +32,27 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
     without restoring plaintext.
     """
 
+    from cryptix_engine.container import parse_header
+
     with open(input_path, "rb") as f:
-        magic = f.read(4)
-        if magic != config.MAGIC_HEADER:
-            raise ValueError("Invalid file format")
-
-        version = int.from_bytes(f.read(1), "big")
-        if version != config.VERSION:
-            raise ValueError(f"Unsupported file version: {version}")
-
-        algorithm = int.from_bytes(f.read(1), "big")
-        salt = f.read(16)
-        iv = f.read(12)
-        tag = f.read(16)
-
-        filename_length = int.from_bytes(f.read(4), "big")
-        filename_bytes = f.read(filename_length)
-
+        header_data = parse_header(f)
         ciphertext = f.read()
 
+    algorithm = header_data["algorithm"]
+    salt = header_data["salt"]
+    iv = header_data["iv"]
+    tag = header_data["tag"]
+    filename_bytes = header_data["filename_bytes"]
+
     # Emit small progress before heavy KDF
-        if progress_callback:
-            progress_callback(5)
+    if progress_callback:
+        progress_callback(5)
 
-        key = derive_key(password, salt, keyfile_data)
+    key = derive_key(password, salt, keyfile_data)
 
-# Emit progress after KDF finishes
-        if progress_callback:
-            progress_callback(10)
+    # Emit progress after KDF finishes
+    if progress_callback:
+        progress_callback(10)
 
     if algorithm == ALGO_AES:
         cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
@@ -67,7 +60,6 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
         cipher = ChaCha20_Poly1305.new(key=key, nonce=iv)
     else:
         raise ValueError("Unsupported algorithm")
-
 
     header = build_header(algorithm, salt, iv)
 
@@ -90,9 +82,10 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
 
         if progress_callback:
             percent = 10 + int((processed / total_size) * 90)
-        if percent > last_percent:
-            last_percent = percent
-            progress_callback(percent)
+            if percent > last_percent:
+                last_percent = percent
+                progress_callback(percent)
+
     try:
         cipher.verify(tag)
     except ValueError:
@@ -336,43 +329,35 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 def decrypt_path(input_path: str, password: str, keyfile_data=None,
                  progress_callback=None, secure_delete_encrypted=False):
 
+    from cryptix_engine.container import parse_header
+
     with open(input_path, "rb") as f:
-
-        magic = f.read(4)
-        if magic != config.MAGIC_HEADER:
-            raise ValueError("Invalid file format")
-
-        version = int.from_bytes(f.read(1), "big")
-        if version != config.VERSION:
-            raise ValueError(f"Unsupported file version: {version}")
-
-        algorithm = int.from_bytes(f.read(1), "big")
-        salt = f.read(16)
-        iv = f.read(12)
-        tag = f.read(16)
-
-        filename_length = int.from_bytes(f.read(4), "big")
-        filename_bytes = f.read(filename_length)
-        original_name = filename_bytes.decode("utf-8")
-
+        header_data = parse_header(f)
         ciphertext = f.read()
 
+    algorithm = header_data["algorithm"]
+    salt = header_data["salt"]
+    iv = header_data["iv"]
+    tag = header_data["tag"]
+    filename_bytes = header_data["filename_bytes"]
+    original_name = filename_bytes.decode("utf-8")
+
     # Emit small progress before heavy KDF
-        if progress_callback:
-            progress_callback(5)
+    if progress_callback:
+        progress_callback(5)
 
-        key = derive_key(password, salt, keyfile_data)
+    key = derive_key(password, salt, keyfile_data)
 
-# Emit progress after KDF finishes
-        if progress_callback:
-            progress_callback(10)
+    # Emit progress after KDF finishes
+    if progress_callback:
+        progress_callback(10)
+
     if algorithm == ALGO_AES:
         cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
     elif algorithm == ALGO_CHACHA:
         cipher = ChaCha20_Poly1305.new(key=key, nonce=iv)
     else:
         raise ValueError("Unsupported algorithm")
-
 
     header = build_header(algorithm, salt, iv)
 
@@ -401,6 +386,7 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
             if percent > last_percent:
                 last_percent = percent
                 progress_callback(percent)
+
     try:
         cipher.verify(tag)
     except ValueError:
@@ -418,18 +404,15 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
             extract_path = output_path.replace(".zip", "")
             zipf.extractall(extract_path)
 
-        if secure_delete_encrypted:
-            if os.path.isfile(input_path):
-                secure_delete(input_path)    
+        if secure_delete_encrypted and os.path.isfile(input_path):
+            secure_delete(input_path)
 
         return extract_path
-
     else:
         with open(output_path, "wb") as f:
             f.write(plaintext)
 
-        if secure_delete_encrypted:
-            if os.path.isfile(input_path):
-                secure_delete(input_path)
+        if secure_delete_encrypted and os.path.isfile(input_path):
+            secure_delete(input_path)
 
         return output_path
