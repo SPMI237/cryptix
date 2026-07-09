@@ -204,34 +204,21 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         cipher.update(aad)
         filename_length = len(filename_bytes).to_bytes(4, "big")
 
+        from cryptix_engine.aead import encrypt_stream
+
         with open(input_path, "rb") as infile, \
-             open(output_path, "wb") as outfile:
+            open(output_path, "wb") as outfile:
 
-            outfile.write(header)
-            outfile.write(b"\x00" * 16)
-            outfile.write(filename_length)
-            outfile.write(filename_bytes)
-
-            while True:
-                chunk = infile.read(32 * 1024)
-                if not chunk:
-                    break
-
-                encrypted_chunk = cipher.encrypt(chunk)
-                outfile.write(encrypted_chunk)
-
-                processed += len(chunk)
-
-                if progress_callback:
-                    percent = 10 + int((processed / total_size) * 90)
-                    if percent > last_percent:
-                        last_percent = percent
-                        progress_callback(percent)
-
-            tag = cipher.digest()
-
-            outfile.seek(len(header))
-            outfile.write(tag)
+            encrypt_stream(
+                infile,
+                outfile,
+                key,
+                algorithm,
+                salt,
+                iv,
+                filename_bytes,
+                progress_callback=None,  # keep simple for now
+    )
 
         if secure_delete_original:
            secure_delete(input_path)
