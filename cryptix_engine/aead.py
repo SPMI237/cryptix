@@ -159,4 +159,47 @@ def decrypt_stream(
     try:
         cipher.verify(tag)
     except ValueError:
-        raise AuthenticationError("Authentication failed — wrong password or tampered file")    
+        raise AuthenticationError("Authentication failed — wrong password or tampered file")   
+
+def verify_stream(
+    input_stream,
+    key: bytes,
+    algorithm: int,
+    salt: bytes,
+    iv: bytes,
+    tag: bytes,
+    filename_bytes: bytes,
+    progress_callback=None,
+):
+    """
+    Verifies integrity and authenticity of encrypted stream.
+    Does not return plaintext.
+    """
+
+    from cryptix_engine.container import build_header, build_aad
+    from cryptix_engine.exceptions import AuthenticationError
+
+    cipher = create_cipher(algorithm, key, iv)
+
+    header = build_header(algorithm, salt, iv)
+    aad = build_aad(header, filename_bytes)
+    cipher.update(aad)
+
+    CHUNK_SIZE = 32 * 1024
+    processed = 0
+
+    while True:
+        chunk = input_stream.read(CHUNK_SIZE)
+        if not chunk:
+            break
+
+        cipher.decrypt(chunk)
+        processed += len(chunk)
+
+        if progress_callback:
+            progress_callback(processed)
+
+    try:
+        cipher.verify(tag)
+    except ValueError:
+        raise AuthenticationError("Integrity check failed — wrong password or tampered file")     

@@ -56,41 +56,20 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
     if progress_callback:
         progress_callback(10)
 
-    cipher = create_cipher(algorithm, key, iv)
+    from cryptix_engine.aead import verify_stream
+    from io import BytesIO
 
-    header = build_header(algorithm, salt, iv)
-
-    aad = build_aad(header, filename_bytes)
-    cipher.update(aad)
-
-    total_size = len(ciphertext)
-    processed = 0
-    last_percent = 10
-    CHUNK_SIZE = 32 * 1024
-    offset = 0
-
-    while offset < total_size:
-        chunk = ciphertext[offset:offset + CHUNK_SIZE]
-        cipher.decrypt(chunk)
-
-        processed += len(chunk)
-        offset += CHUNK_SIZE
-
-        if progress_callback:
-            percent = 10 + int((processed / total_size) * 90)
-            if percent > last_percent:
-                last_percent = percent
-                progress_callback(percent)
-
-    try:
-        cipher.verify(tag)
-    except ValueError:
-        raise AuthenticationError("Integrity check failed — wrong password or tampered file")
-    
-    try:
-        original_name = filename_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        raise AuthenticationError("Corrupted metadata — invalid filename encoding")
+    with BytesIO(ciphertext) as input_stream:
+        verify_stream(
+            input_stream,
+            key,
+            algorithm,
+            salt,
+            iv,
+            tag,
+            filename_bytes,
+            progress_callback=None,
+        )
 
     return "File integrity verified successfully."
 
