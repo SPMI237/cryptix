@@ -185,25 +185,13 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 
     if os.path.isfile(input_path):
 
-        total_size = os.path.getsize(input_path)
-        processed = 0
-        last_percent = 10
-
         original_name = os.path.basename(input_path)
         output_path = input_path + ".cryptix"
 
         iv = os.urandom(12)
 
-        cipher = create_cipher(algorithm, key, iv)
-
-
-        header = build_header(algorithm, salt, iv)
-
         filename_bytes = original_name.encode("utf-8")
-        aad = build_aad(header, filename_bytes)
-        cipher.update(aad)
-        filename_length = len(filename_bytes).to_bytes(4, "big")
-
+        
         from cryptix_engine.aead import encrypt_stream
 
         with open(input_path, "rb") as infile, \
