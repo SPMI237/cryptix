@@ -86,6 +86,11 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
         cipher.verify(tag)
     except ValueError:
         raise AuthenticationError("Integrity check failed — wrong password or tampered file")
+    
+    try:
+        original_name = filename_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise AuthenticationError("Corrupted metadata — invalid filename encoding")
 
     return "File integrity verified successfully."
 
@@ -296,7 +301,6 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
     iv = header_data["iv"]
     tag = header_data["tag"]
     filename_bytes = header_data["filename_bytes"]
-    original_name = filename_bytes.decode("utf-8")
 
     # Emit small progress before heavy KDF
     if progress_callback:
@@ -335,6 +339,12 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
         )
 
     plaintext = plaintext_buffer.getvalue()
+
+    # Decode filename AFTER successful authentication
+    try:
+        original_name = filename_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise AuthenticationError("Corrupted metadata — invalid filename encoding")
 
     input_dir = os.path.dirname(os.path.abspath(input_path)) or os.getcwd()
     output_path = os.path.join(input_dir, original_name)
