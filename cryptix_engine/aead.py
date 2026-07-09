@@ -3,6 +3,11 @@
 import os
 from Crypto.Cipher import AES
 import config
+from Crypto.Cipher import AES, ChaCha20_Poly1305
+from cryptix_engine.exceptions import FormatError
+
+ALGO_AES = 1
+ALGO_CHACHA = 2
 
 
 def generate_iv() -> bytes:
@@ -44,3 +49,12 @@ def decrypt_data(key: bytes, iv: bytes, ciphertext: bytes, tag: bytes):
     plaintext = cipher.decrypt_and_verify(ciphertext, tag)
 
     return plaintext
+
+
+def create_cipher(algorithm: int, key: bytes, iv: bytes):
+    if algorithm == ALGO_AES:
+        return AES.new(key, AES.MODE_GCM, nonce=iv)
+    elif algorithm == ALGO_CHACHA:
+        return ChaCha20_Poly1305.new(key=key, nonce=iv)
+    else:
+        raise FormatError("Unsupported algorithm")

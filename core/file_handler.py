@@ -12,6 +12,7 @@ from cryptix_engine.container import build_header, parse_header
 from cryptix_engine.exceptions import AuthenticationError
 from cryptix_engine.container import build_aad
 from cryptix_engine.container import parse_header
+from cryptix_engine.aead import create_cipher
 
 
 
@@ -55,12 +56,7 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
     if progress_callback:
         progress_callback(10)
 
-    if algorithm == ALGO_AES:
-        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
-    elif algorithm == ALGO_CHACHA:
-        cipher = ChaCha20_Poly1305.new(key=key, nonce=iv)
-    else:
-        raise ValueError("Unsupported algorithm")
+    cipher = create_cipher(algorithm, key, iv)
 
     header = build_header(algorithm, salt, iv)
 
@@ -198,12 +194,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 
         iv = os.urandom(12)
 
-        if algorithm == ALGO_AES:
-            cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
-        elif algorithm == ALGO_CHACHA:
-            cipher = ChaCha20_Poly1305.new(key=key, nonce=iv)
-        else:
-            raise ValueError("Unsupported algorithm")
+        cipher = create_cipher(algorithm, key, iv)
 
 
         header = build_header(algorithm, salt, iv)
@@ -279,12 +270,7 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 
         iv = os.urandom(12)
 
-        if algorithm == ALGO_AES:
-            cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
-        elif algorithm == ALGO_CHACHA:
-            cipher = ChaCha20_Poly1305.new(key=key, nonce=iv)
-        else:
-            raise ValueError("Unsupported algorithm")
+        cipher = create_cipher(algorithm, key, iv)
 
 
         header = build_header(algorithm, salt, iv)
@@ -349,12 +335,7 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
     if progress_callback:
         progress_callback(10)
 
-    if algorithm == ALGO_AES:
-        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
-    elif algorithm == ALGO_CHACHA:
-        cipher = ChaCha20_Poly1305.new(key=key, nonce=iv)
-    else:
-        raise ValueError("Unsupported algorithm")
+    cipher = create_cipher(algorithm, key, iv)
 
     header = build_header(algorithm, salt, iv)
 
