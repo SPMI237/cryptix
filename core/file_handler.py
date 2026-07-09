@@ -4,7 +4,6 @@ import os
 import io
 import zipfile
 
-from Crypto.Cipher import AES, ChaCha20_Poly1305
 
 import config
 from cryptix_engine.kdf import generate_salt, derive_key
