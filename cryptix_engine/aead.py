@@ -1,7 +1,6 @@
 # core/aes_gcm.py
 
 import os
-from Crypto.Cipher import AES
 import config
 from Crypto.Cipher import AES, ChaCha20_Poly1305
 from cryptix_engine.exceptions import FormatError
