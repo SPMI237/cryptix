@@ -10,6 +10,9 @@ import config
 from cryptix_engine.kdf import generate_salt, derive_key
 from cryptix_engine.container import build_header, parse_header
 from cryptix_engine.exceptions import AuthenticationError
+from cryptix_engine.container import build_aad
+from cryptix_engine.container import parse_header
+
 
 
 # =========================================================
@@ -31,8 +34,6 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
     Verify integrity and authenticity of encrypted file
     without restoring plaintext.
     """
-
-    from cryptix_engine.container import parse_header
 
     with open(input_path, "rb") as f:
         header_data = parse_header(f)
@@ -63,8 +64,7 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
 
     header = build_header(algorithm, salt, iv)
 
-    filename_length_bytes = len(filename_bytes).to_bytes(4, "big")
-    aad = header + filename_length_bytes + filename_bytes
+    aad = build_aad(header, filename_bytes)
     cipher.update(aad)
 
     total_size = len(ciphertext)
@@ -209,10 +209,9 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         header = build_header(algorithm, salt, iv)
 
         filename_bytes = original_name.encode("utf-8")
-        filename_length = len(filename_bytes).to_bytes(4, "big")
-
-        aad = header + filename_length + filename_bytes
+        aad = build_aad(header, filename_bytes)
         cipher.update(aad)
+        filename_length = len(filename_bytes).to_bytes(4, "big")
 
         with open(input_path, "rb") as infile, \
              open(output_path, "wb") as outfile:
@@ -291,10 +290,9 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         header = build_header(algorithm, salt, iv)
 
         filename_bytes = original_name.encode("utf-8")
-        filename_length = len(filename_bytes).to_bytes(4, "big")
-
-        aad = header + filename_length + filename_bytes
+        aad = build_aad(header, filename_bytes)
         cipher.update(aad)
+        filename_length = len(filename_bytes).to_bytes(4, "big")
 
         # Emit encryption start progress
         if progress_callback:
@@ -329,7 +327,6 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 def decrypt_path(input_path: str, password: str, keyfile_data=None,
                  progress_callback=None, secure_delete_encrypted=False):
 
-    from cryptix_engine.container import parse_header
 
     with open(input_path, "rb") as f:
         header_data = parse_header(f)
@@ -361,10 +358,9 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
 
     header = build_header(algorithm, salt, iv)
 
-    filename_length_bytes = len(filename_bytes).to_bytes(4, "big")
-    aad = header + filename_length_bytes + filename_bytes
+    aad = build_aad(header, filename_bytes)
     cipher.update(aad)
-
+    
     total_size = len(ciphertext)
     processed = 0
     last_percent = 10

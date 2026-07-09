@@ -38,3 +38,7 @@ def parse_header(stream):
         "tag": tag,
         "filename_bytes": filename_bytes,
     }
+
+def build_aad(header: bytes, filename_bytes: bytes) -> bytes:
+    filename_length_bytes = len(filename_bytes).to_bytes(4, "big")
+    return header + filename_length_bytes + filename_bytes    
