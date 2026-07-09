@@ -245,32 +245,30 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
 
         iv = os.urandom(12)
 
-        cipher = create_cipher(algorithm, key, iv)
-
-
-        header = build_header(algorithm, salt, iv)
+        from cryptix_engine.aead import encrypt_stream
+        from io import BytesIO
 
         filename_bytes = original_name.encode("utf-8")
-        aad = build_aad(header, filename_bytes)
-        cipher.update(aad)
-        filename_length = len(filename_bytes).to_bytes(4, "big")
 
-        # Emit encryption start progress
         if progress_callback:
             progress_callback(50)
 
-        ciphertext, tag = cipher.encrypt_and_digest(plaintext)
+        with BytesIO(plaintext) as input_stream, \
+            open(output_path, "wb") as outfile:
 
-# Emit encryption completion
+            encrypt_stream(
+                input_stream,
+                outfile,
+                key,
+                algorithm,
+                salt,
+                iv,
+                filename_bytes,
+                progress_callback=None,
+            )
+
         if progress_callback:
             progress_callback(100)
-
-        with open(output_path, "wb") as f:
-            f.write(header)
-            f.write(tag)
-            f.write(filename_length)
-            f.write(filename_bytes)
-            f.write(ciphertext)
 
         if secure_delete_original:
            secure_delete_folder(input_path)
