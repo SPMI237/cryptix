@@ -115,3 +115,49 @@ def encrypt_stream(
     # Go back and write tag
     output_stream.seek(len(header))
     output_stream.write(tag)    
+
+def decrypt_stream(
+    input_stream,
+    output_stream,
+    key: bytes,
+    algorithm: int,
+    salt: bytes,
+    iv: bytes,
+    tag: bytes,
+    filename_bytes: bytes,
+    progress_callback=None,
+):
+    """
+    Decrypts data from input_stream and writes to output_stream.
+    Assumes header already parsed.
+    """
+
+    from cryptix_engine.container import build_header, build_aad
+    from cryptix_engine.exceptions import AuthenticationError
+
+    cipher = create_cipher(algorithm, key, iv)
+
+    header = build_header(algorithm, salt, iv)
+    aad = build_aad(header, filename_bytes)
+    cipher.update(aad)
+
+    CHUNK_SIZE = 32 * 1024
+    processed = 0
+
+    while True:
+        chunk = input_stream.read(CHUNK_SIZE)
+        if not chunk:
+            break
+
+        decrypted_chunk = cipher.decrypt(chunk)
+        output_stream.write(decrypted_chunk)
+
+        processed += len(chunk)
+
+        if progress_callback:
+            progress_callback(processed)
+
+    try:
+        cipher.verify(tag)
+    except ValueError:
+        raise AuthenticationError("Authentication failed — wrong password or tampered file")    

@@ -329,34 +329,26 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
     aad = build_aad(header, filename_bytes)
     cipher.update(aad)
     
-    total_size = len(ciphertext)
-    processed = 0
-    last_percent = 10
-    decrypted_chunks = []
+    from cryptix_engine.aead import decrypt_stream
 
-    CHUNK_SIZE = 32 * 1024
-    offset = 0
+    from io import BytesIO
 
-    while offset < total_size:
-        chunk = ciphertext[offset:offset + CHUNK_SIZE]
-        decrypted_chunk = cipher.decrypt(chunk)
-        decrypted_chunks.append(decrypted_chunk)
+    plaintext_buffer = BytesIO()
 
-        processed += len(chunk)
-        offset += CHUNK_SIZE
+    with BytesIO(ciphertext) as input_stream:
+        decrypt_stream(
+            input_stream,
+            plaintext_buffer,
+            key,
+            algorithm,
+            salt,
+            iv,
+            tag,
+            filename_bytes,
+            progress_callback=None,
+        )
 
-        if progress_callback:
-            percent = 10 + int((processed / total_size) * 90)
-            if percent > last_percent:
-                last_percent = percent
-                progress_callback(percent)
-
-    try:
-        cipher.verify(tag)
-    except ValueError:
-        raise AuthenticationError("Authentication failed — wrong password or tampered file")
-
-    plaintext = b"".join(decrypted_chunks)
+    plaintext = plaintext_buffer.getvalue()
 
     input_dir = os.path.dirname(os.path.abspath(input_path)) or os.getcwd()
     output_path = os.path.join(input_dir, original_name)
