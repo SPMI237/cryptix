@@ -269,9 +269,14 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
                  progress_callback=None, secure_delete_encrypted=False):
 
 
-    with open(input_path, "rb") as f:
-        header_data = parse_header(f)
-        ciphertext = f.read()
+    from cryptix_engine.exceptions import FormatError, VersionMismatchError
+
+    try:
+        with open(input_path, "rb") as f:
+            header_data = parse_header(f)
+            ciphertext = f.read()
+    except (FormatError, VersionMismatchError):
+        raise AuthenticationError("Invalid or corrupted container")
 
     algorithm = header_data["algorithm"]
     salt = header_data["salt"]
