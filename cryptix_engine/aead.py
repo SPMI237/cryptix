@@ -5,8 +5,7 @@ import config
 from Crypto.Cipher import AES, ChaCha20_Poly1305
 from cryptix_engine.exceptions import FormatError
 
-ALGO_AES = 1
-ALGO_CHACHA = 2
+from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA
 
 
 def create_cipher(algorithm: int, key: bytes, iv: bytes):

@@ -1,0 +1,2 @@
+ALGO_AES = 1
+ALGO_CHACHA = 2

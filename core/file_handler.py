@@ -20,8 +20,7 @@ from cryptix_engine.aead import create_cipher
 # =========================================================
 
 
-ALGO_AES = 1
-ALGO_CHACHA = 2
+from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA
 
 
 # =========================================================
