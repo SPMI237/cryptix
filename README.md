@@ -181,6 +181,13 @@ python main.py
 
 ---
 
+## Tested Environment
+
+- Python 3.13.x
+- Windows 10 / Windows 11
+- PySide6 6.11.1
+- PyCryptodome 3.23.0
+
 # Building Executable (Windows)
 
 Cryptix can be packaged using PyInstaller:
@@ -190,7 +197,6 @@ python build.py
 ```
 
 The executable will be generated in the `dist/` directory.
-Tested with Python 3.13.x
 
 ---
 
