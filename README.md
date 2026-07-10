@@ -190,6 +190,7 @@ python build.py
 ```
 
 The executable will be generated in the `dist/` directory.
+Tested with Python 3.13.x
 
 ---
 
