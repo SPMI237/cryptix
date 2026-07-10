@@ -1,8 +1,8 @@
-# Cryptix v1.2.0
+# Cryptix v1.3.0
 
 Secure local file encryption for Windows with AES‑256‑GCM, ChaCha20‑Poly1305, and Argon2id.
 
-Current Stable Version: v1.2.0
+Current Stable Version: v1.3.0
 Multi‑Algorithm Authenticated Encryption Suite
 Cryptix is a security‑focused desktop encryption application designed to provide structured, authenticated local file protection using modern cryptographic primitives.
 
@@ -33,7 +33,7 @@ Cryptix is built as a modular, security‑oriented platform rather than a simple
 - ✅ Keyfile support (optional second factor)  
 - ✅ Dark mode UI (PySide6)  
 
-# What's New in v1.2.0
+# What's New in v1.3.0
 
 ### Usability Improvements
 - ✅ Drag-and-drop file and folder support with visual overlay feedback
@@ -145,7 +145,7 @@ See: `THREAT_MODEL.md` for full threat model.
 
 1. Go to the **Releases** section.
 2. Download the latest installer:
-   `Cryptix_Installer_v1.2.0.exe`
+   `Cryptix_Installer_v1.3.0.exe`
 3. Run the installer.
 4. Launch Cryptix from Desktop or Start Menu.
 

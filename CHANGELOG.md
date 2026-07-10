@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.2.0 — Professionalization & System Integration Update
+## v1.3.0 — Professionalization & System Integration Update
 
 ### Distribution Improvements
 - Windows installer with desktop and Start Menu integration

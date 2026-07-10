@@ -226,7 +226,7 @@ class MainWindow(QMainWindow):
     def __init__(self, initial_file=None):
         super().__init__()
 
-        self.version = "1.2.0"
+        self.version = "1.3.0"
         self.setWindowTitle("Cryptix")
         import sys
         import os

@@ -21,7 +21,7 @@ A clear and concise description of what you expected to happen.
 
 **Environment:**
  - OS: [e.g., Windows 10, Windows 11]
- - Cryptix Version: [e.g., v1.2.0]
+ - Cryptix Version: [e.g., v1.3.0]
  - Installation Method: [Installer / Portable ZIP]
 
 **Additional context**
