@@ -290,7 +290,10 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
     if progress_callback:
         progress_callback(10)
 
-    cipher = create_cipher(algorithm, key, iv)
+    try:
+        cipher = create_cipher(algorithm, key, iv)
+    except Exception:
+        raise AuthenticationError("Corrupted metadata — invalid algorithm")
 
     header = build_header(algorithm, salt, iv)
 
