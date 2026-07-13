@@ -12,7 +12,7 @@ from cryptix_engine.exceptions import AuthenticationError
 from cryptix_engine.container import build_aad
 from cryptix_engine.container import parse_header
 from cryptix_engine.aead import create_cipher
-
+from core.logger import log_event
 
 
 # =========================================================
@@ -127,22 +127,22 @@ def secure_delete_folder(folder_path: str):
                     f.flush()
                     os.fsync(f.fileno())
                 os.remove(full_path)
-            except Exception:
-                pass  # Ignore failures silently
+            except Exception as e:
+                log_event("SECURE_DELETE_WARNING", f"Failed to overwrite/delete file: {full_path} ({e})")
 
         # Remove empty directories
         for dir_name in dirs:
             dir_path = os.path.join(root, dir_name)
             try:
                 os.rmdir(dir_path)
-            except Exception:
-                pass
+            except Exception as e:
+                log_event("SECURE_DELETE_WARNING", f"Failed to remove directory: {dir_path} ({e})")
 
     # Finally remove the root folder
     try:
         os.rmdir(folder_path)
-    except Exception:
-        pass
+    except Exception as e:
+        log_event("SECURE_DELETE_WARNING", f"Failed to remove root folder: {folder_path} ({e})")
 
 
 # =========================================================
