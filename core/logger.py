@@ -29,38 +29,40 @@ def clear_secure_log():
 def log_event(event_type: str, details: str):
     """
     Securely appends an event to the encrypted audit log.
+    Logger must never crash application.
     """
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_entry = f"[{timestamp}] [{event_type}] {details}\n"
+    try:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_entry = f"[{timestamp}] [{event_type}] {details}\n"
 
-    plaintext = ""
+        plaintext = ""
 
-    # 1. Read and decrypt existing log (if it exists)
-    if os.path.exists(LOG_FILE):
-        try:
-            with open(LOG_FILE, "rb") as f:
-                iv = f.read(12)
-                tag = f.read(16)
-                ciphertext = f.read()
+        if os.path.exists(LOG_FILE):
+            try:
+                with open(LOG_FILE, "rb") as f:
+                    iv = f.read(12)
+                    tag = f.read(16)
+                    ciphertext = f.read()
 
-            cipher = AES.new(LOG_KEY, AES.MODE_GCM, nonce=iv)
-            plaintext = cipher.decrypt_and_verify(ciphertext, tag).decode("utf-8")
-        except Exception:
-            # If log was corrupted/tampered, we append a warning
-            plaintext = f"[{timestamp}] [WARNING] Previous log corrupted or tampered!\n"
+                cipher = AES.new(LOG_KEY, AES.MODE_GCM, nonce=iv)
+                plaintext = cipher.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+            except Exception:
+                plaintext = f"[{timestamp}] [WARNING] Previous log corrupted or tampered!\n"
 
-    # 2. Append new entry
-    plaintext += new_entry
+        plaintext += new_entry
 
-    # 3. Re-encrypt and save
-    new_iv = os.urandom(12)
-    cipher = AES.new(LOG_KEY, AES.MODE_GCM, nonce=new_iv)
-    ciphertext, new_tag = cipher.encrypt_and_digest(plaintext.encode("utf-8"))
+        new_iv = os.urandom(12)
+        cipher = AES.new(LOG_KEY, AES.MODE_GCM, nonce=new_iv)
+        ciphertext, new_tag = cipher.encrypt_and_digest(plaintext.encode("utf-8"))
 
-    with open(LOG_FILE, "wb") as f:
-        f.write(new_iv)
-        f.write(new_tag)
-        f.write(ciphertext)
+        with open(LOG_FILE, "wb") as f:
+            f.write(new_iv)
+            f.write(new_tag)
+            f.write(ciphertext)
+
+    except Exception:
+        # Logger must never break main application
+        pass
 
 
 def read_secure_log() -> str:
