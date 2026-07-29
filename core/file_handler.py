@@ -28,7 +28,7 @@ from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA
 # =========================================================
 
 def verify_path(input_path: str, password: str, keyfile_data=None,
-                progress_callback=None):
+                progress_callback=None, return_report=False):
     """
     Verify integrity and authenticity of encrypted file
     without restoring plaintext.
@@ -54,11 +54,11 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
     if progress_callback:
         progress_callback(10)
 
-    from cryptix_engine.aead import verify_stream
+        from cryptix_engine.aead import verify_stream
     from io import BytesIO
 
     with BytesIO(ciphertext) as input_stream:
-        verify_stream(
+        report = verify_stream(
             input_stream,
             key,
             algorithm,
@@ -67,7 +67,11 @@ def verify_path(input_path: str, password: str, keyfile_data=None,
             tag,
             filename_bytes,
             progress_callback=None,
+            return_report=return_report,
         )
+
+    if return_report:
+        return report
 
     return "File integrity verified successfully."
 
