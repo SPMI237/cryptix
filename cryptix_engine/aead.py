@@ -6,6 +6,7 @@ from Crypto.Cipher import AES, ChaCha20_Poly1305
 from cryptix_engine.exceptions import FormatError
 
 from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA
+from cryptix_engine.reports import IntegrityReport
 
 
 def create_cipher(algorithm: int, key: bytes, iv: bytes):
@@ -128,23 +129,39 @@ def verify_stream(
     tag: bytes,
     filename_bytes: bytes,
     progress_callback=None,
+    return_report=False,
 ):
     """
     Verifies integrity and authenticity of encrypted stream.
-    Does not return plaintext.
     """
 
     from cryptix_engine.container import build_header, build_aad
     from cryptix_engine.exceptions import AuthenticationError
 
-    cipher = create_cipher(algorithm, key, iv)
+    report = IntegrityReport(
+        container_valid=True,
+        version_supported=True,
+        algorithm_supported=True,
+        metadata_authenticated=False,
+        ciphertext_authenticated=False,
+        failure_stage=None,
+        notes=[],
+    )
+
+    try:
+        cipher = create_cipher(algorithm, key, iv)
+    except Exception:
+        report.algorithm_supported = False
+        report.failure_stage = "algorithm"
+        raise AuthenticationError("Unsupported algorithm", report=report)
 
     header = build_header(algorithm, salt, iv)
     aad = build_aad(header, filename_bytes)
+
     cipher.update(aad)
+    report.metadata_authenticated = True
 
     CHUNK_SIZE = 32 * 1024
-    processed = 0
 
     while True:
         chunk = input_stream.read(CHUNK_SIZE)
@@ -152,12 +169,16 @@ def verify_stream(
             break
 
         cipher.decrypt(chunk)
-        processed += len(chunk)
-
-        if progress_callback:
-            progress_callback(processed)
 
     try:
         cipher.verify(tag)
+        report.ciphertext_authenticated = True
     except ValueError:
-        raise AuthenticationError("Integrity check failed — wrong password or tampered file")     
+        report.failure_stage = "ciphertext"
+        report.notes.append(
+            "Authenticated encryption cannot distinguish wrong password from tampering."
+        )
+        raise AuthenticationError("Integrity check failed", report=report)
+
+    if return_report:
+        return report
