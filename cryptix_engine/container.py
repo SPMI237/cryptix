@@ -1,8 +1,8 @@
+import hashlib
 import config
 from cryptix_engine.reports import ContainerStructureReport
 from cryptix_engine.exceptions import FormatError, VersionMismatchError
 from cryptix_engine.constants import algorithm_name
-
 
 
 def build_header(algorithm: int, salt: bytes, iv: bytes) -> bytes:
@@ -81,3 +81,27 @@ def analyze_container_structure(stream):
         report.notes.append("Failed to parse container structure.")
 
     return report
+
+
+WORDLIST = [
+    "RIVER", "EAGLE", "STONE", "OCEAN", "MOUNTAIN", "FOREST",
+    "SHADOW", "FLAME", "STORM", "SUN", "MOON", "CLOUD",
+    "IRON", "SILVER", "GOLD", "NORTH", "SOUTH", "EAST", "WEST",
+    "WIND", "FROST", "EMBER", "LIGHT", "DUSK", "DAWN"
+]
+
+
+def generate_fingerprint(container_bytes: bytes) -> str:
+    """
+    Generate a human-readable fingerprint from full container hash.
+    """
+    digest = hashlib.sha256(container_bytes).digest()
+
+    # Use first two bytes to index into word list
+    word1 = WORDLIST[digest[0] % len(WORDLIST)]
+    word2 = WORDLIST[digest[1] % len(WORDLIST)]
+
+    # Use next two bytes as numeric suffix
+    number = int.from_bytes(digest[2:4], "big") % 10000
+
+    return f"{word1}-{word2}-{number:04d}"
