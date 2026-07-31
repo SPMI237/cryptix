@@ -12,6 +12,7 @@ from core.file_handler import (
     ALGO_CHACHA,
     AuthenticationError
 )
+from cryptix_engine.reports import IntegrityReport
 
 from utils.settings import load_settings, save_settings
 
@@ -44,6 +45,14 @@ from PySide6.QtCore import (
 )
 
 from PySide6.QtGui import QPainter, QColor, QIcon
+from cryptix_engine.container import analyze_container_structure
+from cryptix_engine.constants import algorithm_name
+from cryptix_engine.container import parse_header
+from cryptix_engine.aead import verify_stream
+from cryptix_engine.kdf import derive_key
+from cryptix_engine.exceptions import AuthenticationError
+from io import BytesIO
+
 
 
 
@@ -109,7 +118,7 @@ class AnimatedToggle(QCheckBox):
 # Worker Thread (for encryption/decryption)
 # =========================================================
 class WorkerThread(QThread):
-    finished = Signal(str)
+    finished = Signal(object)
     error = Signal(object)  # <-- Changed to object
     progress = Signal(int)
 
@@ -123,6 +132,7 @@ class WorkerThread(QThread):
         self.keyfile_data = keyfile_data
         self.secure_delete = False
         self.secure_delete_encrypted = False
+        self.return_report = False
 
     def run(self):
         try:
@@ -196,20 +206,22 @@ class WorkerThread(QThread):
                             path,
                             self.password,
                             self.keyfile_data,
-                            progress_callback=self.progress.emit
+                            progress_callback=self.progress.emit,
+                            return_report=self.return_report
                         )
                         results.append(r)
 
                     if len(results) == 1:
-                        result = f"{os.path.basename(self.file_path[0])} verified successfully."
+                        result = results[0]
                     else:
-                        result = f"{len(results)} files verified successfully."
+                        result = results  # we won’t handle multi-report UI yet
                 else:
                     result = verify_path(
                         self.file_path,
                         self.password,
                         self.keyfile_data,
-                        progress_callback=self.progress.emit
+                        progress_callback=self.progress.emit,
+                        return_report=self.return_report
                     )
 
             # Clear sensitive reference
@@ -251,6 +263,7 @@ class MainWindow(QMainWindow):
         self.failed_attempts = 0
         self.lock_seconds_remaining = 0
         self.is_locked = False
+        self.last_integrity_report = None
 
         self.drag_active = False
         
@@ -530,6 +543,11 @@ class MainWindow(QMainWindow):
         self.decrypt_button = QPushButton("Decrypt")
         self.verify_button = QPushButton("Verify")
 
+        self.analyze_button = QPushButton("Analyze")
+        self.analyze_button.setEnabled(False)
+        self.analyze_button.clicked.connect(self.start_analyze)
+
+        
         self.encrypt_button.clicked.connect(self.start_encrypt)
         self.decrypt_button.clicked.connect(self.start_decrypt)
         self.verify_button.clicked.connect(self.start_verify)
@@ -541,6 +559,7 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.encrypt_button)
         button_layout.addWidget(self.decrypt_button)
         button_layout.addWidget(self.verify_button)
+        button_layout.addWidget(self.analyze_button)
 
         layout.addLayout(button_layout)
 
@@ -1021,6 +1040,18 @@ class MainWindow(QMainWindow):
         self.encrypt_button.setEnabled(bool(encrypt_valid))
         self.decrypt_button.setEnabled(bool(decrypt_valid))
         self.verify_button.setEnabled(bool(self.file_path and password))
+        if isinstance(self.file_path, list):
+            enable_analyze = (
+                len(self.file_path) == 1 and
+                str(self.file_path[0]).endswith(".cryptix")
+            )
+        else:
+            enable_analyze = (
+                self.file_path and
+                str(self.file_path).endswith(".cryptix")
+            )
+
+        self.analyze_button.setEnabled(bool(enable_analyze))
     def update_strength(self):
         password = self.password_input.text()
 
@@ -1157,6 +1188,7 @@ class MainWindow(QMainWindow):
         self.password_input.text(),
         keyfile_data
     )
+        self.worker.return_report = True
 
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.on_success)
@@ -1164,6 +1196,61 @@ class MainWindow(QMainWindow):
 
         self.worker.start()
 
+    def start_analyze(self):
+        from cryptix_engine.container import analyze_container_structure
+
+        if isinstance(self.file_path, list):
+            target = self.file_path[0]
+        else:
+            target = self.file_path
+
+        try:
+            with open(target, "rb") as f:
+                report = analyze_container_structure(f)
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Container Analysis")
+            dialog.setMinimumWidth(450)
+
+            layout = QVBoxLayout(dialog)
+
+            structure_text = f"""
+    Container Analysis (Structure Only)
+
+    Container Detected: {report.container_detected}
+    Header Valid: {report.header_valid}
+    Format Version: {report.format_version}
+    Algorithm: {algorithm_name(report.algorithm)}
+    Compatible With Engine: {report.compatible}
+
+    Integrity: Not Verified
+    (Authentication required for integrity validation)
+
+    Notes: {', '.join(report.notes) if report.notes else 'None'}
+    """
+
+            label = QLabel(structure_text)
+            label.setAlignment(Qt.AlignLeft)
+            layout.addWidget(label)
+
+            button_layout = QHBoxLayout()
+
+            auth_btn = QPushButton("Authenticate Container")
+            close_btn = QPushButton("Close")
+
+            button_layout.addWidget(auth_btn)
+            button_layout.addWidget(close_btn)
+
+            layout.addLayout(button_layout)
+
+            auth_btn.clicked.connect(lambda: self.authenticate_container(dialog, target))
+            close_btn.clicked.connect(dialog.accept)
+
+            dialog.exec()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Analysis Failed", str(e)) 
+        
     def on_benchmark_result(self, result):
         QMessageBox.information(self, "Benchmark Complete", result)    
 
@@ -1189,37 +1276,61 @@ class MainWindow(QMainWindow):
 
     def on_success(self, result):
         self.progress_bar.setVisible(False)
-        self.failed_attempts = 0 # Reset failed attempts on success
-        self.status_label.setText(f"Success: {result}")
+        self.failed_attempts = 0
+
         if not self.is_locked:
-         self.set_ui_state("READY")
+            self.set_ui_state("READY")
+
         self.status_led.setStyleSheet("color: #00FF66; font-weight: bold;")
-        self.set_ui_busy_state(False) # Re-enable UI
-        self.validate_inputs() # Re-validate buttons based on current state
-        self.keyfile_path = None
+        self.set_ui_busy_state(False)
+        self.validate_inputs()
 
-
-         # ---> ADD THIS LINE <---
-        action = self.worker.mode.upper()
-        log_event(f"{action} SUCCESS", f"Target: {result}")
-
-         # Secure wipe password fields
+        # Secure wipe password fields
         self.password_input.clear()
         self.confirm_input.clear()
         if hasattr(self.worker, "password"):
             self.worker.password = None
-        
-       # Reset keyfile UI & state
+
+        # Reset keyfile UI & state
         self.keyfile_path = None
         self.use_keyfile_checkbox.setChecked(False)
         self.keyfile_button.setText("Select Keyfile")
         self.keyfile_button.setEnabled(False)
 
-        if self.worker.mode == "verify":
-            QMessageBox.information(self, "Verification Result", "File integrity verified successfully.")
-        else:
-            QMessageBox.information(self, "Success", "Operation completed successfully!")
+        action = self.worker.mode.upper()
+        log_event(f"{action} SUCCESS", f"Target: {result}")
 
+        if self.worker.mode == "verify":
+            if isinstance(result, IntegrityReport):
+                self.last_integrity_report = result
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Verification Result")
+            dialog.setMinimumWidth(400)
+
+            layout = QVBoxLayout(dialog)
+
+            message = QLabel("File integrity verified successfully.")
+            message.setAlignment(Qt.AlignCenter)
+            layout.addWidget(message)
+
+            button_layout = QHBoxLayout()
+            show_details_btn = QPushButton("Show Details")
+            close_btn = QPushButton("Close")
+
+            button_layout.addWidget(show_details_btn)
+            button_layout.addWidget(close_btn)
+            layout.addLayout(button_layout)
+
+            show_details_btn.clicked.connect(self.show_integrity_details)
+            close_btn.clicked.connect(dialog.accept)
+
+            dialog.exec()
+            return
+
+        # Default success popup for encrypt/decrypt
+        QMessageBox.information(self, "Success", "Operation completed successfully!")
+        
     def on_error(self, message):
         self.progress_bar.setVisible(False)
         self.status_label.setText(f"ERROR: {str(message)}")
@@ -1279,6 +1390,102 @@ class MainWindow(QMainWindow):
             self.file_path = folder_path
             self.file_label.setText(f"Selected folder: {os.path.basename(folder_path)}")
             self.validate_inputs()
+
+    def show_integrity_details(self):
+        if not self.last_integrity_report:
+            return
+
+        report = self.last_integrity_report
+
+        details = f"""
+    Integrity Report
+
+    Schema Version: {report.schema_version}
+    Container Valid: {report.container_valid}
+    Version Supported: {report.version_supported}
+    Algorithm Supported: {report.algorithm_supported}
+    Metadata Authenticated: {report.metadata_authenticated}
+    Ciphertext Authenticated: {report.ciphertext_authenticated}
+    Failure Stage: {report.failure_stage}
+    Notes: {', '.join(report.notes) if report.notes else 'None'}
+    """
+
+        QMessageBox.information(self, "Integrity Details", details)      
+
+    def authenticate_container(self, parent_dialog, target_path):
+        # Custom password dialog
+        password_dialog = QDialog(self)
+        password_dialog.setWindowTitle("Enter Password")
+        password_dialog.setMinimumWidth(350)
+
+        layout = QVBoxLayout(password_dialog)
+
+        password_input = QLineEdit()
+        password_input.setEchoMode(QLineEdit.Password)
+        password_input.setPlaceholderText("Enter password")
+        layout.addWidget(password_input)
+
+        button_layout = QHBoxLayout()
+        ok_btn = QPushButton("Authenticate")
+        cancel_btn = QPushButton("Cancel")
+        button_layout.addWidget(ok_btn)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+
+        ok_btn.clicked.connect(password_dialog.accept)
+        cancel_btn.clicked.connect(password_dialog.reject)
+
+        if password_dialog.exec() != QDialog.Accepted:
+            return
+
+        password = password_input.text()
+
+        try:
+            with open(target_path, "rb") as f:
+                header_data = parse_header(f)
+                ciphertext = f.read()
+
+            algorithm = header_data["algorithm"]
+            salt = header_data["salt"]
+            iv = header_data["iv"]
+            tag = header_data["tag"]
+            filename_bytes = header_data["filename_bytes"]
+
+            key = derive_key(password, salt, None)
+
+            with BytesIO(ciphertext) as input_stream:
+                report = verify_stream(
+                    input_stream,
+                    key,
+                    algorithm,
+                    salt,
+                    iv,
+                    tag,
+                    filename_bytes,
+                    return_report=True
+                )
+
+            QMessageBox.information(
+                self,
+                "Authenticated Analysis",
+                f"""
+    Authenticated Container Analysis
+
+    Metadata Authenticated: {report.metadata_authenticated}
+    Ciphertext Authenticated: {report.ciphertext_authenticated}
+    Failure Stage: {report.failure_stage}
+    Notes: {', '.join(report.notes) if report.notes else 'None'}
+    """
+            )
+
+        except AuthenticationError:
+            QMessageBox.critical(
+                self,
+                "Authentication Failed",
+                "Authentication failed.\nThe password may be incorrect or the container was modified."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))      
 
 
     def select_image(self):
