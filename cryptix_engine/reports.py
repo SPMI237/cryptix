@@ -23,3 +23,17 @@ class IntegrityReport:
             and self.metadata_authenticated
             and self.ciphertext_authenticated
         )
+
+@dataclass
+class ContainerStructureReport:
+    schema_version: int = 1
+
+    container_detected: bool = False
+    format_version: int | None = None
+    algorithm: int | None = None
+    header_valid: bool = False
+    compatible: bool = False
+    notes: List[str] = None
+
+    def is_valid_structure(self) -> bool:
+        return self.container_detected and self.header_valid
