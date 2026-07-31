@@ -1,6 +1,7 @@
 import config
 from cryptix_engine.reports import ContainerStructureReport
 from cryptix_engine.exceptions import FormatError, VersionMismatchError
+from cryptix_engine.constants import algorithm_name
 
 
 
@@ -68,6 +69,7 @@ def analyze_container_structure(stream):
 
         algorithm = int.from_bytes(stream.read(1), "big")
         report.algorithm = algorithm
+        report.notes.append(f"Algorithm: {algorithm_name(algorithm)}")
 
         if version == config.VERSION:
             report.compatible = True
