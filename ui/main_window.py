@@ -52,6 +52,7 @@ from cryptix_engine.aead import verify_stream
 from cryptix_engine.kdf import derive_key
 from cryptix_engine.exceptions import AuthenticationError
 from io import BytesIO
+from cryptix_engine.container import generate_fingerprint
 
 
 
@@ -547,6 +548,8 @@ class MainWindow(QMainWindow):
         self.analyze_button.setEnabled(False)
         self.analyze_button.clicked.connect(self.start_analyze)
 
+        self.assess_button = QPushButton("Security Advisor")
+        self.assess_button.clicked.connect(self.start_assessment)
         
         self.encrypt_button.clicked.connect(self.start_encrypt)
         self.decrypt_button.clicked.connect(self.start_decrypt)
@@ -560,6 +563,8 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.decrypt_button)
         button_layout.addWidget(self.verify_button)
         button_layout.addWidget(self.analyze_button)
+        button_layout.addWidget(self.assess_button)
+        
 
         layout.addLayout(button_layout)
 
@@ -1250,6 +1255,92 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "Analysis Failed", str(e)) 
+
+    def start_assessment(self):
+        from cryptix_engine.assessment import collect_security_facts, generate_security_advice
+        from cryptix_engine.constants import algorithm_name
+
+        password = self.password_input.text()
+        keyfile_present = bool(self.keyfile_path)
+        algorithm = self.algorithm_selector.currentData()
+
+        facts = collect_security_facts(password, keyfile_present, algorithm)
+        advice = generate_security_advice(facts)
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Security Advisor")
+        dialog.setMinimumWidth(500)
+
+        layout = QVBoxLayout(dialog)
+
+        # ---- BASIC SECTION ----
+        basic_text = f"""
+    Security Advisor
+
+    Password Entropy: {facts.password_entropy_bits} bits
+    Keyfile Present: {facts.keyfile_present}
+    Algorithm: {algorithm_name(facts.algorithm)}
+
+    Argon2id:
+    Memory: {facts.argon2_memory_mb} MB
+    Iterations: {facts.argon2_time_cost}
+    Parallelism: {facts.argon2_parallelism}
+
+    Risk Profile:
+    {advice["risk_profile"]}
+
+    Recommendations:
+    {', '.join(advice["recommendations"]) if advice["recommendations"] else 'None'}
+    """
+
+        basic_label = QLabel(basic_text)
+        basic_label.setAlignment(Qt.AlignLeft)
+        layout.addWidget(basic_label)
+
+        # ---- EXPANDABLE SECTION ----
+        extra_text = f"""
+    Cryptix Guarantees
+
+    ✓ Metadata authenticated
+    ✓ Ciphertext authenticated
+    ✓ Fail‑closed decryption
+    ✓ No silent corruption
+
+    Cryptix Does NOT Guarantee
+
+    ✗ Protection against malware
+    ✗ Password recovery
+    ✗ Protection if password and keyfile stolen together
+    """
+
+        extra_label = QLabel(extra_text)
+        extra_label.setAlignment(Qt.AlignLeft)
+        extra_label.setVisible(False)
+        layout.addWidget(extra_label)
+
+        # ---- BUTTONS ----
+        button_layout = QHBoxLayout()
+        toggle_btn = QPushButton("Show More")
+        close_btn = QPushButton("Close")
+
+        button_layout.addWidget(toggle_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+
+        def toggle_section():
+            if extra_label.isVisible():
+                extra_label.setVisible(False)
+                toggle_btn.setText("Show More")
+                dialog.adjustSize()  # force shrink
+            else:
+                extra_label.setVisible(True)
+                toggle_btn.setText("Show Less")
+                dialog.adjustSize()  # force expand
+
+        toggle_btn.clicked.connect(toggle_section)
+        close_btn.clicked.connect(dialog.accept)
+
+        dialog.exec()     
         
     def on_benchmark_result(self, result):
         QMessageBox.information(self, "Benchmark Complete", result)    
@@ -1441,6 +1532,13 @@ class MainWindow(QMainWindow):
         password = password_input.text()
 
         try:
+            # Read full file for fingerprint
+            with open(target_path, "rb") as f:
+                container_bytes = f.read()
+
+            fingerprint = generate_fingerprint(container_bytes)
+
+            # Parse header and ciphertext
             with open(target_path, "rb") as f:
                 header_data = parse_header(f)
                 ciphertext = f.read()
@@ -1469,13 +1567,18 @@ class MainWindow(QMainWindow):
                 self,
                 "Authenticated Analysis",
                 f"""
-    Authenticated Container Analysis
+            Authenticated Container Analysis
 
-    Metadata Authenticated: {report.metadata_authenticated}
-    Ciphertext Authenticated: {report.ciphertext_authenticated}
-    Failure Stage: {report.failure_stage}
-    Notes: {', '.join(report.notes) if report.notes else 'None'}
-    """
+            Algorithm: {algorithm_name(algorithm)}
+            Metadata Authenticated: {report.metadata_authenticated}
+            Ciphertext Authenticated: {report.ciphertext_authenticated}
+
+            Container Fingerprint:
+            {fingerprint}
+
+            Failure Stage: {report.failure_stage}
+            Notes: {', '.join(report.notes) if report.notes else 'None'}
+            """
             )
 
         except AuthenticationError:

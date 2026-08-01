@@ -19,6 +19,18 @@
 - Fixed startup crash when opening encrypted files via file association
 - Improved installer configuration
 
+## Explainable Core Release
+- Container Structure Analysis
+- Authenticated Container Analysis
+- IntegrityReport engine integration
+- Container fingerprint system
+- Security Advisor (facts + guidance)
+- Engine extraction completed
+- Structured exception hierarchy
+- CI enforced testing
+- Dependency pinning
+- Build documentation
+
 ## v1.1.0 — Usability & Workflow Enhancement Update
 
 ### New Features

@@ -37,3 +37,16 @@ class ContainerStructureReport:
 
     def is_valid_structure(self) -> bool:
         return self.container_detected and self.header_valid
+
+@dataclass
+class SecurityAssessment:
+    schema_version: int = 1
+
+    password_entropy_bits: float = 0.0
+    password_strength_level: str = ""
+    keyfile_present: bool = False
+    algorithm: int | None = None
+    kdf_memory_mb: int = 0
+
+    risk_profile: str = ""
+    recommendations: List[str] = None    
