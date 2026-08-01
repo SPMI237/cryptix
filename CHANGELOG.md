@@ -17,7 +17,7 @@
 
 ### Stability
 - Fixed startup crash when opening encrypted files via file association
-- Improved installer configuration
+- Improved installer configuration.
 
 ## Explainable Core Release
 - Container Structure Analysis
