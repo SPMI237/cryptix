@@ -19,7 +19,7 @@ def main():
         "background-color: #0B0F19; color: #00F0FF; font-size: 16px;"
     )
     splash.showMessage(
-        "CRYPTIX\nInitializing Secure Modules...",
+         "CRYPTIX CORE\nInitializing Secure Modules...",
         Qt.AlignCenter,
         Qt.cyan
     )

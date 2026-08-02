@@ -240,7 +240,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.version = "1.3.0"
-        self.setWindowTitle("Cryptix")
+        self.setWindowTitle("Cryptix Core")
         import sys
         import os
         from PySide6.QtGui import QIcon
@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(subtitle)
 
         # File selection
-        subtitle = QLabel(f"AES‑256 GCM & ChaCha20 Secure Encryption  |  v{self.version}")
+        subtitle = QLabel(f"Cryptix Core  |  AES‑256 GCM & ChaCha20  |  v{self.version}")
         subtitle.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(subtitle)
 
@@ -657,7 +657,7 @@ class MainWindow(QMainWindow):
     """)
 
        about_text.setHtml(f"""
-        <h2 style="color:#00F0FF;">CRYPTIX v{self.version}</h2>
+        <h2 style="color:#00F0FF;">CRYPTIX CORE v{self.version}</h2>
 
         <b>Encryption Engine:</b><br>
         • AES‑256‑GCM<br>
