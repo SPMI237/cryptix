@@ -1,6 +1,38 @@
 # Changelog
 
-## v1.3.0 — Professionalization & System Integration Update
+## v1.3.0 — Explainable Core Release
+
+### Engine
+- Full cryptographic engine extraction (cryptix_engine package)
+- Structured exception hierarchy (CryptixError base class)
+- Stream-based encryption, decryption, and verification
+
+### Explainable Security
+- Container Structure Analysis (no password)
+- Authenticated Container Analysis (password required)
+- IntegrityReport model with failure-stage tracking
+- Deterministic container fingerprint system
+- Security Advisor (facts + guidance + collapsible guarantees panel)
+- Engine extraction completed
+- Structured exception hierarchy
+- CI enforced testing
+- Dependency pinning
+- Build documentation
+
+### Stability
+- pytest regression suite (12 tests)
+- GitHub Actions CI enforcement on every push
+- Pinned runtime and dev dependencies
+- Reproducible build documentation (BUILD.md)
+- Release SHA256 hash documentation
+- Fixed startup crash when opening encrypted files via file association
+- Improved installer configuration.
+
+### Branding
+- Application renamed to Cryptix Core
+- Executable renamed to CryptixCore.exe
+- Installer renamed to CryptixCore_Installer_v1.3.0.exe
+- File extension remains `.cryptix` (platform-level container format)
 
 ### Distribution Improvements
 - Windows installer with desktop and Start Menu integration
@@ -14,22 +46,6 @@
 ### Usability & Transparency
 - Performance benchmark mode (AES‑256‑GCM, ChaCha20‑Poly1305, Argon2id)
 - Persistent user settings (theme, algorithm, secure delete preferences)
-
-### Stability
-- Fixed startup crash when opening encrypted files via file association
-- Improved installer configuration.
-
-## Explainable Core Release
-- Container Structure Analysis
-- Authenticated Container Analysis
-- IntegrityReport engine integration
-- Container fingerprint system
-- Security Advisor (facts + guidance)
-- Engine extraction completed
-- Structured exception hierarchy
-- CI enforced testing
-- Dependency pinning
-- Build documentation
 
 ## v1.1.0 — Usability & Workflow Enhancement Update
 

@@ -1,10 +1,9 @@
-# Cryptix v1.3.0
-
-Secure local file encryption for Windows with AES‑256‑GCM, ChaCha20‑Poly1305, and Argon2id.
+# Cryptix Core v1.3.0
 
 Current Stable Version: v1.3.0
-Multi‑Algorithm Authenticated Encryption Suite
-Cryptix is a security‑focused desktop encryption application designed to provide structured, authenticated local file protection using modern cryptographic primitives.
+Cryptix Core is the desktop application of the **Cryptix Platform**.
+
+It provides modern, transparent, and locally-controlled file encryption built on the **Cryptix Engine**.
 
 It implements:
 
@@ -14,8 +13,29 @@ It implements:
 - Authenticated metadata binding (AAD)
 - Structured, versioned encrypted container format
 
-Cryptix is built as a modular, security‑oriented platform rather than a simple encryption wrapper.
+Cryptix Core is built as a modular, security‑oriented platform rather than a simple encryption wrapper.
 
+## 🔐 Powered by the Cryptix Engine
+
+Cryptix Core relies on the shared **cryptix_engine** package, which owns:
+
+- Key derivation (Argon2id)
+- Authenticated encryption (AES-256-GCM, ChaCha20-Poly1305)
+- Container format
+- Stream-based encryption and decryption
+- Integrity verification
+- Structured reporting
+
+## 🧭 Platform Direction
+
+Cryptix is evolving into a platform:
+
+- **Cryptix Engine** — shared cryptographic library
+- **Cryptix Core** — desktop file & folder encryption
+- **Cryptix Vault** — future encrypted workspace product
+- **Cryptix CLI / SDK** — future integrations
+
+This release formally introduces the platform layering and the explainable security philosophy.
 ---
 
 # Core Security Features
@@ -122,14 +142,14 @@ See: `FILE_FORMAT.md` for full specification.
 
 # Threat Model Summary
 
-Cryptix is designed to protect:
+Cryptix Core is designed to protect:
 
 - Local confidential files
 - Stolen storage devices
 - Offline file analysis
 - File tampering attempts
 
-Cryptix does **NOT** protect against:
+Cryptix Core does **NOT** protect against:
 
 - Malware infections
 - Keyloggers
@@ -145,9 +165,9 @@ See: `THREAT_MODEL.md` for full threat model.
 
 1. Go to the **Releases** section.
 2. Download the latest installer:
-   `Cryptix_Installer_v1.3.0.exe`
+   `CryptixCore_Installer_v1.3.0.exe`
 3. Run the installer.
-4. Launch Cryptix from Desktop or Start Menu.
+4. Launch Cryptix Core from Desktop or Start Menu.
 
 `.cryptix` files can be opened directly by double‑clicking.
 
@@ -157,7 +177,7 @@ Clone the repository:
 
 ```bash
 git clone https://github.com/SPMI237/cryptix.git
-cd cryptix
+cd cryptix Core
 ```
 
 Create a virtual environment:
@@ -190,7 +210,7 @@ python main.py
 
 # Building Executable (Windows)
 
-Cryptix can be packaged using PyInstaller:
+Cryptix Core can be packaged using PyInstaller:
 
 ```bash
 python build.py
@@ -202,7 +222,7 @@ The executable will be generated in the `dist/` directory.
 
 # Security & Trust
 
-Cryptix is built on the principle of transparency. We do not use hidden mechanisms or legacy cryptography.
+Cryptix Core is built on the principle of transparency. We do not use hidden mechanisms or legacy cryptography.
 
 For detailed technical information, please review our documentation:
 - [Platform Vision](docs/PLATFORM_VISION.md)
@@ -222,13 +242,13 @@ However, security depends on:
 - Protection against malware
 - Safe device handling
 
-Cryptix reduces risk but does not eliminate all attack vectors.
+Cryptix Core reduces risk but does not eliminate all attack vectors.
 
 ---
 
 # License
 
-Cryptix is distributed under the Cryptix Source‑Available License v1.0.
+Cryptix Core is distributed under the Cryptix Core Source‑Available License v1.0.
 
 Source code is available for audit, educational use, and non‑commercial use.
 
