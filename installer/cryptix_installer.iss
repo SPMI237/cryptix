@@ -2,11 +2,11 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 ; Non-commercial use only
 
-#define MyAppName "Cryptix"
+#define MyAppName "Cryptix Core"
 #define MyAppVersion "1.3.0"
 #define MyAppPublisher "Michel Idriss"
 #define MyAppURL "https://github.com/SPMI237/cryptix"
-#define MyAppExeName "Cryptix.exe"
+#define MyAppExeName "CryptixCore.exe"
 #define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".cryptix"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -37,7 +37,7 @@ ChangesAssociations=yes
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
-OutputBaseFilename=Cryptix_Installer_v1.3.0
+OutputBaseFilename=CryptixCore_Installer_v1.3.0
 SolidCompression=yes
 WizardStyle=modern dynamic
 
@@ -45,7 +45,7 @@ WizardStyle=modern dynamic
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "C:\Users\dell\Documents\crypto_app\dist\Cryptix.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\dell\Documents\crypto_app\dist\CryptixCore.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]
@@ -55,8 +55,8 @@ Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: s
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 
 [Icons]
-Name: "{group}\Cryptix"; Filename: "{app}\Cryptix.exe"
-Name: "{userdesktop}\Cryptix"; Filename: "{app}\Cryptix.exe"
+Name: "{group}\Cryptix Core"; Filename: "{app}\CryptixCore.exe"
+Name: "{userdesktop}\Cryptix Core"; Filename: "{app}\CryptixCore.exe"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
