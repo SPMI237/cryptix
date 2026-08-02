@@ -719,7 +719,7 @@ class MainWindow(QMainWindow):
                     reply = QMessageBox.information(
                         self,
                         "Update Available",
-                        f"A new version of Cryptix (v{latest_version}) is available.\n\nVisit download page?",
+                        f"A new version of Cryptix Core (v{latest_version}) is available.\n\nVisit download page?",
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                     )
 
@@ -1620,4 +1620,3 @@ class MainWindow(QMainWindow):
                 self.file_label.setText(f"Selected {len(file_paths)} images")
             self.validate_inputs()
 
-    
