@@ -335,7 +335,7 @@ class MainWindow(QMainWindow):
 
 # LEFT SECTION
         left_layout = QHBoxLayout()
-        title = QLabel("⚡ CRYPTIX")
+        title = QLabel("⚡ CRYPTIX CORE")
         title.setStyleSheet("font-size: 20px; font-weight: bold; letter-spacing: 2px;")
         left_layout.addWidget(title)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
