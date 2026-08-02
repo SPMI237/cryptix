@@ -233,7 +233,7 @@ class WorkerThread(QThread):
         except Exception as e:
             self.error.emit(e)  # <-- Now passing the actual Error Object
 # =========================================================
-# Main Window (CRYPTIX Application)
+# Main Window (CRYPTIX CORE Application)
 # =========================================================
 class MainWindow(QMainWindow):
     def __init__(self, initial_file=None):
@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
         log_content = read_secure_log()
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("CRYPTIX - Secure Audit Log")
+        dialog.setWindowTitle("Cryptix Core - Encrypted Audit Log")
         dialog.resize(500, 450)
 
         layout = QVBoxLayout(dialog)
@@ -335,7 +335,7 @@ class MainWindow(QMainWindow):
 
 # LEFT SECTION
         left_layout = QHBoxLayout()
-        title = QLabel("⚡ CRYPTIX CORE")
+        title = QLabel("🛡 CRYPTIX CORE")
         title.setStyleSheet("font-size: 20px; font-weight: bold; letter-spacing: 2px;")
         left_layout.addWidget(title)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -407,7 +407,7 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(self.theme_toggle)
 
     # About Button
-        self.about_button = QPushButton("About Cryptix")
+        self.about_button = QPushButton("About Cryptix Core")
         self.about_button.setStyleSheet("color: #00F0FF;")
         self.about_button.clicked.connect(self.show_about_dialog)
         settings_layout.addWidget(self.about_button)
@@ -636,7 +636,7 @@ class MainWindow(QMainWindow):
 
     def show_about_dialog(self):
        dialog = QDialog(self)
-       dialog.setWindowTitle("About Cryptix")
+       dialog.setWindowTitle("About Cryptix Core")
        dialog.setMinimumWidth(600)
        dialog.setMinimumHeight(450)
 
@@ -659,27 +659,41 @@ class MainWindow(QMainWindow):
        about_text.setHtml(f"""
         <h2 style="color:#00F0FF;">CRYPTIX CORE v{self.version}</h2>
 
-        <b>Encryption Engine:</b><br>
-        • AES‑256‑GCM<br>
-        • ChaCha20‑Poly1305<br>
+        <b>Platform:</b><br>
+        Cryptix Core is the desktop application of the Cryptix Platform.<br>
+        It is powered by the Cryptix Engine.<br><br>
+
+        <b>Core Capabilities:</b><br>
+        • File & Folder Encryption<br>
+        • Container Structure Analysis<br>
+        • Authenticated Container Analysis<br>
+        • Deterministic Container Fingerprint<br>
+        • Security Advisor (Pre‑Encryption Assessment)<br><br>
+
+        <b>Cryptographic Primitives:</b><br>
+        • AES‑256‑GCM (AEAD)<br>
+        • ChaCha20‑Poly1305 (AEAD)<br>
         • Argon2id (100MB memory‑hard key derivation)<br><br>
 
-        <b>Security Features:</b><br>
-        • Authenticated Encryption (AEAD)<br>
-        • Metadata Authentication (AAD)<br>
-        • Integrity Verification Mode<br>
-        • Secure Delete Option<br>
-        • Keyfile Support<br>
-        • Lockout Protection (Anti‑Brute Force)<br><br>
+        <b>Explainable Security Principle:</b><br>
+        Every cryptographic decision made by Cryptix Core can be explained.<br>
+        The engine produces structured security facts; the application presents them clearly.<br><br>
 
-        <b>Threat Model:</b><br>
-        Cryptix protects files against unauthorized access and tampering.<br>
-        It verifies integrity and detects wrong passwords or modified files.<br>
-        It does <b>NOT</b> protect against full system compromise or malware.<br><br>
+        <b>Security Boundaries:</b><br>
+        Cryptix Core protects against offline access and tampering.<br>
+        It does <b>NOT</b> protect against active malware or OS compromise.<br><br>
 
         <hr>
-        <center>© 2026 Cryptix Project</center>
-    """)
+        <hr>
+        <b>Author:</b><br>
+        Michel Idriss<br><br>
+
+        <b>Project:</b><br>
+        Cryptix Platform<br><br>
+
+        <hr>
+        <center>© 2026 Cryptix Platform</center>
+        """)
 
        layout.addWidget(about_text)
 
@@ -1299,14 +1313,14 @@ class MainWindow(QMainWindow):
 
         # ---- EXPANDABLE SECTION ----
         extra_text = f"""
-    Cryptix Guarantees
+    Cryptix Core Guarantees
 
     ✓ Metadata authenticated
     ✓ Ciphertext authenticated
     ✓ Fail‑closed decryption
     ✓ No silent corruption
 
-    Cryptix Does NOT Guarantee
+    Cryptix Core Does NOT Guarantee
 
     ✗ Protection against malware
     ✗ Password recovery
