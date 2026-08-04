@@ -1,4 +1,4 @@
-# core/aes_gcm.py
+# cryptix_engine/aes_gcm.py
 
 import os
 import config

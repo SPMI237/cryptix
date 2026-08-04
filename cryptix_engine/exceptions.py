@@ -1,6 +1,8 @@
 class CryptixError(Exception):
     """Base class for all Cryptix engine errors."""
-    pass
+    def __init__(self, *args, **kwargs):
+        self.report = kwargs.pop("report", None)
+        super().__init__(*args, **kwargs)
 
 
 class AuthenticationError(CryptixError):

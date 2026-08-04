@@ -342,7 +342,7 @@ def decrypt_path(input_path: str, password: str, keyfile_data=None,
     if original_name.endswith(".zip"):
         zip_buffer = io.BytesIO(plaintext)
         with zipfile.ZipFile(zip_buffer, "r") as zipf:
-            extract_path = output_path.replace(".zip", "")
+            extract_path = output_path[:-4] if output_path.lower().endswith(".zip") else output_path
             zipf.extractall(extract_path)
 
         if secure_delete_encrypted and os.path.isfile(input_path):
