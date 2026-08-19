@@ -10,6 +10,7 @@ from core.file_handler import (
     verify_path,
     ALGO_AES,
     ALGO_CHACHA,
+    ALGO_XCHACHA,
     AuthenticationError
 )
 from cryptix_engine.reports import IntegrityReport
@@ -395,6 +396,7 @@ class MainWindow(QMainWindow):
         self.algorithm_selector = QComboBox()
         self.algorithm_selector.addItem("AES-256-GCM", ALGO_AES)
         self.algorithm_selector.addItem("ChaCha20-Poly1305", ALGO_CHACHA)
+        self.algorithm_selector.addItem("XChaCha20-Poly1305", ALGO_XCHACHA)
         self.algorithm_selector.currentIndexChanged.connect(self.update_algorithm_badge)
         settings_layout.addWidget(QLabel("Encryption Method"))
         settings_layout.addWidget(self.algorithm_selector)
@@ -537,7 +539,6 @@ class MainWindow(QMainWindow):
         self.secure_delete_after_decrypt_checkbox.stateChanged.connect(self.persist_settings)
 
         # Buttons (Encrypt/Decrypt)
-       
         button_layout = QHBoxLayout()
 
         self.encrypt_button = QPushButton("Encrypt")
@@ -550,6 +551,10 @@ class MainWindow(QMainWindow):
 
         self.assess_button = QPushButton("Security Advisor")
         self.assess_button.clicked.connect(self.start_assessment)
+
+        self.simulate_button = QPushButton("Simulation")
+        self.simulate_button.setEnabled(False)
+        self.simulate_button.clicked.connect(self.start_simulation)
         
         self.encrypt_button.clicked.connect(self.start_encrypt)
         self.decrypt_button.clicked.connect(self.start_decrypt)
@@ -564,8 +569,8 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.verify_button)
         button_layout.addWidget(self.analyze_button)
         button_layout.addWidget(self.assess_button)
+        button_layout.addWidget(self.simulate_button)
         
-
         layout.addLayout(button_layout)
 
         # Processing progress bar (visible only during process)
@@ -1059,6 +1064,7 @@ class MainWindow(QMainWindow):
         self.encrypt_button.setEnabled(bool(encrypt_valid))
         self.decrypt_button.setEnabled(bool(decrypt_valid))
         self.verify_button.setEnabled(bool(self.file_path and password))
+        self.simulate_button.setEnabled(bool(encrypt_valid))
         if isinstance(self.file_path, list):
             enable_analyze = (
                 len(self.file_path) == 1 and
@@ -1367,6 +1373,7 @@ class MainWindow(QMainWindow):
     def set_ui_busy_state(self, busy):
         self.encrypt_button.setEnabled(not busy)
         self.decrypt_button.setEnabled(not busy)
+        self.simulate_button.setEnabled(not busy)
         
         # Updated to the 3 new buttons
         self.select_file_button.setEnabled(not busy)
@@ -1465,18 +1472,23 @@ class MainWindow(QMainWindow):
             self.status_led.setText("● READY")
             self.status_led.setStyleSheet("color: #00FF66; font-weight: bold;")
     def update_algorithm_badge(self):
-     algo = self.algorithm_selector.currentData()
+        algo = self.algorithm_selector.currentData()
 
-     if algo == ALGO_AES:
-        self.algorithm_badge.setText("AES")
-        self.algorithm_badge.setStyleSheet(
-            "background-color: #00F0FF; color: #000000; padding: 4px 8px; border-radius: 3px; font-weight: bold;"
-        )
-     else:
-        self.algorithm_badge.setText("CHACHA")
-        self.algorithm_badge.setStyleSheet(
-            "background-color: #00FF66; color: #000000; padding: 4px 8px; border-radius: 3px; font-weight: bold;"
-        )
+        if algo == ALGO_AES:
+            self.algorithm_badge.setText("AES")
+            self.algorithm_badge.setStyleSheet(
+                "background-color: #00F0FF; color: #000000; padding: 4px 8px; border-radius: 3px; font-weight: bold;"
+            )
+        elif algo == ALGO_CHACHA:
+            self.algorithm_badge.setText("CHACHA")
+            self.algorithm_badge.setStyleSheet(
+                "background-color: #00FF66; color: #000000; padding: 4px 8px; border-radius: 3px; font-weight: bold;"
+            )
+        else:
+            self.algorithm_badge.setText("XCHACHA")
+            self.algorithm_badge.setStyleSheet(
+                "background-color: #D300FF; color: #000000; padding: 4px 8px; border-radius: 3px; font-weight: bold;"
+            )
 
     def select_file(self):
         file_paths, _ = QFileDialog.getOpenFileNames(self, "Select Files")
@@ -1619,4 +1631,17 @@ class MainWindow(QMainWindow):
             else:
                 self.file_label.setText(f"Selected {len(file_paths)} images")
             self.validate_inputs()
+
+    def start_simulation(self):
+        from ui.simulation_dialog import SimulationDialog
+
+        dialog = SimulationDialog(
+            parent=self,
+            file_path=self.file_path,
+            password=self.password_input.text(),
+            keyfile_path=self.keyfile_path,
+            algorithm=self.algorithm_selector.currentData()
+        )
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.start_encrypt()
 
