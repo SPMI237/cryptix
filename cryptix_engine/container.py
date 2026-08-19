@@ -29,7 +29,9 @@ def parse_header(stream):
 
     algorithm = int.from_bytes(stream.read(1), "big")
     salt = stream.read(16)
-    iv = stream.read(12)
+
+    iv_len = 24 if algorithm == 3 else 12  # 3 is ALGO_XCHACHA
+    iv = stream.read(iv_len)
     tag = stream.read(16)
 
     filename_length = int.from_bytes(stream.read(4), "big")

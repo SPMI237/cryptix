@@ -5,14 +5,14 @@ import config
 from Crypto.Cipher import AES, ChaCha20_Poly1305
 from cryptix_engine.exceptions import FormatError
 
-from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA
+from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA, ALGO_XCHACHA
 from cryptix_engine.reports import IntegrityReport
 
 
 def create_cipher(algorithm: int, key: bytes, iv: bytes):
     if algorithm == ALGO_AES:
         return AES.new(key, AES.MODE_GCM, nonce=iv)
-    elif algorithm == ALGO_CHACHA:
+    elif algorithm in [ALGO_CHACHA, ALGO_XCHACHA]:
         return ChaCha20_Poly1305.new(key=key, nonce=iv)
     else:
         raise FormatError("Unsupported algorithm")

@@ -20,8 +20,7 @@ from core.logger import log_event
 # =========================================================
 
 
-from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA
-
+from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA, ALGO_XCHACHA
 
 # =========================================================
 # VERIFY (Integrity Check Only)
@@ -174,7 +173,8 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         original_name = os.path.basename(input_path)
         output_path = input_path + ".cryptix"
 
-        iv = os.urandom(12)
+        iv_len = 24 if algorithm == ALGO_XCHACHA else 12
+        iv = os.urandom(iv_len)
 
         filename_bytes = original_name.encode("utf-8")
         
@@ -229,7 +229,8 @@ def encrypt_path(input_path: str, password: str, keyfile_data=None,
         original_name = os.path.basename(input_path) + ".zip"
         output_path = input_path + ".cryptix"
 
-        iv = os.urandom(12)
+        iv_len = 24 if algorithm == ALGO_XCHACHA else 12
+        iv = os.urandom(iv_len)
 
         from cryptix_engine.aead import encrypt_stream
         from io import BytesIO

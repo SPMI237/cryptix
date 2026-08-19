@@ -1,10 +1,15 @@
+# cryptix_engine/constants.py
+
 ALGO_AES = 1
 ALGO_CHACHA = 2
+ALGO_XCHACHA = 3
 
 def algorithm_name(algo_id: int) -> str:
     if algo_id == ALGO_AES:
         return "AES-256-GCM"
     elif algo_id == ALGO_CHACHA:
         return "ChaCha20-Poly1305"
+    elif algo_id == ALGO_XCHACHA:
+        return "XChaCha20-Poly1305"
     else:
         return f"Unknown ({algo_id})"
