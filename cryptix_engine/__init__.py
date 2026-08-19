@@ -3,6 +3,7 @@ from .aead import encrypt_stream, decrypt_stream, verify_stream
 from .container import build_header, parse_header, build_aad
 from .exceptions import AuthenticationError, FormatError, VersionMismatchError
 from .constants import ALGO_AES, ALGO_CHACHA
+from .simulation import calculate_simulation
 
 __all__ = [
     "derive_key",
@@ -17,4 +18,5 @@ __all__ = [
     "VersionMismatchError",
     "ALGO_AES",
     "ALGO_CHACHA",
+    "calculate_simulation",
 ]

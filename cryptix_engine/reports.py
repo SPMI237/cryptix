@@ -50,3 +50,24 @@ class SecurityAssessment:
 
     risk_profile: str = ""
     recommendations: List[str] = None    
+
+
+@dataclass
+class HardwareProfile:
+    schema_version: int = 1
+    aes_mb_s: float = 0.0
+    chacha_mb_s: float = 0.0
+    kdf_latency_s: float = 0.0
+    timestamp: float = 0.0
+
+
+@dataclass
+class SimulationReport:
+    schema_version: int = 1
+    input_size_bytes: int = 0
+    estimated_time_s: float = 0.0
+    estimated_output_size_bytes: int = 0
+    estimated_memory_mb: int = 0
+    confidence_level: str = "Low"  # "Low", "Medium", "High"
+    confidence_reasons: List[str] = None
+    notes: List[str] = None
