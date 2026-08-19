@@ -42,4 +42,6 @@ sample_*
 installer/*.exe
 installer/Output/
 
+# Platform files
 CRYPTIX_audit.log.enc
+settings.json

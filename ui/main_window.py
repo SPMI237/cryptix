@@ -1655,6 +1655,8 @@ class MainWindow(QMainWindow):
             self.start_encrypt()
 
     def prompt_calibration(self):
+        self.raise_()
+        self.activateWindow()
         reply = QMessageBox.question(
             self,
             "Performance Calibration",
