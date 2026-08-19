@@ -139,8 +139,15 @@ class WorkerThread(QThread):
     def run(self):
         try:
             if self.mode == "benchmark":
-                from utils.benchmark import run_benchmark
-                result = run_benchmark()
+                from utils.performance import run_calibration
+                profile = run_calibration()
+                result = (
+                    f"Performance Calibration Complete!\n\n"
+                    f"Argon2id KDF Latency: {profile.kdf_latency_s} s\n"
+                    f"AES-256-GCM Speed: {profile.aes_mb_s} MB/s\n"
+                    f"ChaCha20-Poly1305 Speed: {profile.chacha_mb_s} MB/s\n\n"
+                    f"These hardware metrics have been cached for Simulation Mode."
+                )
                 self.finished.emit(result)
                 return
 
@@ -274,6 +281,8 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         QTimer.singleShot(2000, self.check_for_updates)
+        if "hardware_profile" not in self.settings:
+            QTimer.singleShot(3500, self.prompt_calibration)
         self.setAcceptDrops(True)
 
     def show_audit_log(self):
@@ -1644,4 +1653,18 @@ class MainWindow(QMainWindow):
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.start_encrypt()
+
+    def prompt_calibration(self):
+        reply = QMessageBox.question(
+            self,
+            "Performance Calibration",
+            "This is your first time launching Cryptix Core.\n\n"
+            "Would you like to run a Performance Calibration? "
+            "This measures your local CPU and storage throughput, "
+            "allowing Simulation Mode to be highly accurate (+/- 5% precision) on YOUR computer.\n\n"
+            "This takes about 5 seconds.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.start_benchmark()
 
