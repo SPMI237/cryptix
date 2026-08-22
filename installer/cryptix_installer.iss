@@ -58,6 +58,9 @@ Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; Value
 Name: "{group}\Cryptix Core"; Filename: "{app}\CryptixCore.exe"
 Name: "{userdesktop}\Cryptix Core"; Filename: "{app}\CryptixCore.exe"
 
+[UninstallDelete]
+Type: filesandordirs; Name: "{userappdata}\Cryptix"
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
