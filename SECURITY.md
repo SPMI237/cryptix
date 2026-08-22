@@ -43,11 +43,10 @@ Cryptix follows several core security principles:
 
 Currently supported cryptographic primitives include:
 
-- AES-256-GCM (authenticated encryption)
-- ChaCha20-Poly1305 (authenticated encryption)
+- AES-256-GCM (authenticated encryption, 12-byte nonce)
+- ChaCha20-Poly1305 (authenticated encryption, 12-byte nonce)
+- XChaCha20-Poly1305 (authenticated encryption, 24-byte nonce, collision-resistant)
 - Argon2id (memory-hard password-based key derivation, 100MB configuration)
-
-Additional algorithms may be introduced in future versions.
 
 ---
 

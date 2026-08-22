@@ -89,6 +89,7 @@ Cryptix relies on the security of:
 
 - AES-256-GCM
 - ChaCha20-Poly1305
+- XChaCha20-Poly1305
 - Argon2id
 - secure random number generation
 

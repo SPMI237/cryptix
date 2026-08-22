@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.0 — Intelligent Encryption Release
+
+### Engine
+- Integrated next-generation **XChaCha20-Poly1305** authenticated encryption (ALGO_XCHACHA = 3) utilizing 192-bit (24-byte) nonces.
+- Upgraded container parsing to dynamically adjust IV-header read lengths (24 bytes for XChaCha, 12 bytes for GCM/ChaCha20).
+- Created a decoupled **Performance Service** (`utils/performance.py`) automating local machine calibration.
+- Added programmatic estimation formulas under `cryptix_engine/simulation.py` producing a structured `SimulationReport`.
+
+### Explainable Security & GUI
+- Implemented **Pre-Flight Simulation Mode**: Clicking Simulation displays a structured checklist, estimated time, memory ceilings, output sizes, and confidence levels.
+- Designed a custom, high-contrast, scrollable **Simulation Dialog** (`ui/simulation_dialog.py`) with collapsible educational panels explaining cryptographic decisions (KDF memory-hardness, AEAD boundaries, and cipher acceleration).
+- Implemented **First-Launch Calibration Prompts**: On initial app launch, users are prompted to run a fast, non-intrusive 5-second performance calibration to train the simulation model.
+- Added dynamic badging badglets for XCHACHA (Purple highlight indicators) inside the settings HUD.
+
+### Stability & Testing
+- Expanded automated regression suite to **17 comprehensive tests** (`tests/test_simulation.py`, `tests/test_performance.py`, and `test_encrypt_decrypt_roundtrip_xchacha`).
+- Added persistent `settings.json` and encrypted log assets to `.gitignore` rules to keep development repositories clean.
+
+
 ## v1.3.0 — Explainable Core Release
 
 ### Engine

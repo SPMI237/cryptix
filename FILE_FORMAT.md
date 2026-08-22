@@ -73,10 +73,11 @@ Specifies the encryption algorithm used.
 
 Example values:
 
-| ID | Algorithm |
-|----|------------|
-| 01 | AES-256-GCM |
-| 02 | ChaCha20-Poly1305 |
+| ID | Algorithm | Nonce Size |
+|----|------------|------------|
+| 01 | AES-256-GCM | 12 bytes |
+| 02 | ChaCha20-Poly1305 | 12 bytes |
+| 03 | XChaCha20-Poly1305 | 24 bytes |
 
 Future algorithms may be added.
 
@@ -101,6 +102,8 @@ Unique value required by authenticated encryption algorithms.
 Requirements:
 - randomly generated
 - never reused with same key
+- 12 bytes long for AES-256-GCM and ChaCha20-Poly1305
+- 24 bytes long for XChaCha20-Poly1305 (to eliminate random collision risk under bulk operations)
 
 ---
 
