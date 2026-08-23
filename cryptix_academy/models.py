@@ -18,12 +18,12 @@ class Lesson:
 class Question:
     id: str
     lesson_id: str
-    question_type: str  # "choice", "boolean", "ordering", "matching"
+    question_type: str  # "choice", "boolean", "ordering"
     question: str
-    options: List[str]
-    correct_answer: str
-    explanation: str
-    difficulty: str
+    options: List[str] = field(default_factory=list)
+    correct_answer: str = ""
+    explanation: str = ""
+    difficulty: str = "Beginner"
 
 @dataclass
 class ChallengeResult:

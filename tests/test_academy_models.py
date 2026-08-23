@@ -21,14 +21,24 @@ def test_curriculum_and_all_lessons():
     ]
     assert lesson_ids == expected_ids
 
-    # Verify that every lesson has exactly 1 high-quality question mapped to it
+    # Verify that every lesson has exactly 2 high-quality questions mapped to it
     for l_id in expected_ids:
         questions = get_questions_for_lesson(l_id)
-        assert len(questions) == 1
-        assert isinstance(questions[0], Question)
-        assert questions[0].lesson_id == l_id
-        assert len(questions[0].correct_answer) == 1
-        assert len(questions[0].options) == 4
+        assert len(questions) == 2
+        for q in questions:
+            assert isinstance(q, Question)
+            assert q.lesson_id == l_id
+            assert len(q.correct_answer) > 0
+            assert q.question_type in ["choice", "boolean", "ordering"]
+            
+            # Check options constraints
+            if q.question_type == "boolean":
+                assert q.options == ["True", "False"]
+            elif q.question_type == "ordering":
+                assert len(q.options) == 5
+                assert q.correct_answer == "0,1,2,3,4"
+            else:
+                assert len(q.options) == 4
 
 def test_progress_persistence_and_reset():
     # 1. Reset progress first to start clean

@@ -18,8 +18,8 @@ LESSONS = [
         title="Level 2: Passwords, Keys & Argon2id",
         category="Key Derivation",
         difficulty="Intermediate",
-        content="Passwords chosen by humans are easy to guess and lack high-entropy randomness. Symmetric algorithms like AES require uniform 256-bit binary keys. A Key Derivation Function (KDF) like Argon2id derives a cryptographic key from your password and a unique salt. Its memory-hard computation makes large-scale password guessing significantly more expensive.",
-        simple_explanation="AES does not understand text passwords. Argon2id converts your password and a salt into a 256-bit random cryptographic key.",
+        content="Passwords chosen by humans are easy to guess and lack high-entropy randomness. Symmetric algorithms like AES require uniform 256-bit binary keys. Argon2id derives a cryptographic key from your password and a unique salt. Its memory-hard computation makes large-scale password guessing significantly more expensive.",
+        simple_explanation="AES does not understand text passwords. Argon2id derives a 256-bit random cryptographic key from your password and a salt.",
         technical_explanation="Argon2id combines salt + password, performing a configurable number of memory loops (100MB cost, 3 iterations, 8 threads) to resist ASIC/GPU parallelized password-cracking.",
         security_explanation="A sufficiently strong password combined with an appropriate KDF like Argon2id makes practical offline password guessing extremely expensive for attackers."
     ),
@@ -28,7 +28,7 @@ LESSONS = [
         title="Level 3: Salt & Nonce Laboratory",
         category="Salts & Nonces",
         difficulty="Intermediate",
-        content="A salt is a unique, random 16-byte value used during key derivation. It ensures identical passwords produce completely different derived keys. A nonce (number used once) or IV is a unique, random 12-byte or 24-byte value that ensures encrypting the same file twice produces completely different ciphertext. Nonce reuse with the same key is a critical security vulnerability.",
+        content="A salt is a unique, random 16-byte value used during key derivation. It ensures identical passwords produce completely different derived keys. Cryptix generates a fresh nonce/IV for each encryption operation. The required size depends on the selected AEAD algorithm (12 bytes for GCM/ChaCha20, 24 bytes for XChaCha20). Nonce reuse with the same key is a critical security vulnerability.",
         simple_explanation="Salts make passwords unique. Nonces make ciphers unique. They ensure that even if you encrypt the same file twice with the same password, the outputs look completely different.",
         technical_explanation="Salts prevent precomputed dictionary (rainbow table) attacks. Nonces ensure semantic security in authenticated ciphers like AES-GCM (12 bytes) and XChaCha20-Poly1305 (24 bytes).",
         security_explanation="Using a 24-byte nonce (XChaCha20) expands the nonce space from 96 bits to 192 bits, mathematically eliminating random collision risks during automated bulk operations."
@@ -61,7 +61,7 @@ LESSONS = [
         content="The Cryptix Container Format (.cryptix) is a byte-aligned structured binary layout. It sequentially stores: Magic Header (4 bytes 'GCA1'), Format Version (1 byte), Algorithm ID (1 byte), Key Salt (16 bytes), Nonce/IV (12 or 24 bytes), Authentication Tag (16 bytes), Filename Length (4 bytes), Filename (variable), and the encrypted Ciphertext.",
         simple_explanation="A .cryptix file is not a text document. It is a precise, formatted binary container holding magic identifiers, salts, nonces, tags, and ciphertext in sequence.",
         technical_explanation="The container layout uses big-endian 4-byte length prefixing for filenames. Dynamic IV-header offsets ensure compatibility between 12-byte (AES/ChaCha) and 24-byte (XChaCha) nonces.",
-        security_explanation="No secret parameters (passwords, encryption keys) are ever written to the disk. Only public, random, and authenticated cryptographic helper headers are stored."
+        security_explanation="The password and derived encryption key are not stored in the Cryptix container. Only public, random, and authenticated cryptographic helper headers are stored."
     ),
     Lesson(
         id="integrity_tampering",
@@ -76,6 +76,7 @@ LESSONS = [
 ]
 
 QUESTIONS = [
+    # ---- Level 1: Fundamentals ----
     Question(
         id="fundamentals_q1",
         lesson_id="crypto_fundamentals",
@@ -92,12 +93,30 @@ QUESTIONS = [
         difficulty="Beginner"
     ),
     Question(
+        id="fundamentals_q2",
+        lesson_id="crypto_fundamentals",
+        question_type="ordering",
+        question="Arrange the conceptual symmetric encryption pipeline in the correct sequential order.",
+        options=[
+            "Plaintext",
+            "Encryption",
+            "Ciphertext",
+            "Decryption",
+            "Plaintext"
+        ],
+        correct_answer="0,1,2,3,4",
+        explanation="Plaintext is encrypted into Ciphertext, which is later decrypted back into Plaintext.",
+        difficulty="Beginner"
+    ),
+
+    # ---- Level 2: Passwords & Argon2id ----
+    Question(
         id="kdf_q1",
         lesson_id="kdf_argon2id",
         question_type="choice",
         question="Why can't Cryptix Core simply use your plaintext password directly as an AES key?",
         options=[
-            "A. Text passwords are too short and lack the necessary high-entropy randomness required by AES",
+            "A. Text passwords are too short and lack the uniform high-entropy randomness required by AES",
             "B. Plaintext passwords would corrupt the file structure on write",
             "C. Plaintext passwords can only encrypt text files",
             "D. Plaintext passwords would bypass verification checks"
@@ -106,6 +125,23 @@ QUESTIONS = [
         explanation="AES requires a uniform 256-bit high-entropy binary key. Humans choose low-entropy passwords. Argon2id is required to derive a random 256-bit key from the password safely.",
         difficulty="Intermediate"
     ),
+    Question(
+        id="kdf_q2",
+        lesson_id="kdf_argon2id",
+        question_type="choice",
+        question="If two users choose the exact same password, why should their derived keys still differ?",
+        options=[
+            "A. The encryption algorithm changes automatically",
+            "B. Cryptix forces different version codes",
+            "C. A unique random salt is generated for each user, producing unique keys",
+            "D. The user email is mixed into the key"
+        ],
+        correct_answer="C",
+        explanation="A unique random salt is combined with the password. This ensures identical passwords derive highly divergent keys, preventing cross-file correlation and dictionary attacks.",
+        difficulty="Intermediate"
+    ),
+
+    # ---- Level 3: Salts & Nonces ----
     Question(
         id="salt_nonce_q1",
         lesson_id="salt_nonce_lab",
@@ -122,6 +158,21 @@ QUESTIONS = [
         difficulty="Intermediate"
     ),
     Question(
+        id="salt_nonce_q2",
+        lesson_id="salt_nonce_lab",
+        question_type="boolean",
+        question="A cryptographic nonce/IV is intended to be safely reused with the same encryption key.",
+        options=[
+            "True",
+            "False"
+        ],
+        correct_answer="False",
+        explanation="A nonce stands for 'number used once'. Reusing a nonce with the same key breaks the semantic security of AEAD ciphers, allowing attackers to leak data.",
+        difficulty="Intermediate"
+    ),
+
+    # ---- Level 4: AEAD ----
+    Question(
         id="aead_q1",
         lesson_id="aead_authentication",
         question_type="choice",
@@ -136,6 +187,21 @@ QUESTIONS = [
         explanation="Releasing unauthenticated plaintext is a critical security vulnerability. Attackers can manipulate ciphertext bytes and observe decrypted outputs to reverse-engineer data.",
         difficulty="Advanced"
     ),
+    Question(
+        id="aead_q2",
+        lesson_id="aead_authentication",
+        question_type="boolean",
+        question="AEAD authenticated encryption guarantees both the confidentiality and integrity of your files.",
+        options=[
+            "True",
+            "False"
+        ],
+        correct_answer="True",
+        explanation="AEAD (Authenticated Encryption with Associated Data) guarantees confidentiality (via encryption) and integrity/authenticity (via tag verification) concurrently.",
+        difficulty="Advanced"
+    ),
+
+    # ---- Level 5: AAD ----
     Question(
         id="aad_q1",
         lesson_id="aad_metadata",
@@ -152,6 +218,23 @@ QUESTIONS = [
         difficulty="Advanced"
     ),
     Question(
+        id="aad_q2",
+        lesson_id="aad_metadata",
+        question_type="choice",
+        question="What is the main characteristic of Associated Data (AAD)?",
+        options=[
+            "A. It is encrypted but not verified",
+            "B. It remains unencrypted (public) but is completely authenticated against modification",
+            "C. It is generated by Argon2id",
+            "D. It has a constant length of 256 bytes"
+        ],
+        correct_answer="B",
+        explanation="AAD allows non-secret parameters (like headers and filenames) to remain readable, while fully guaranteeing that they cannot be modified or replaced by an attacker.",
+        difficulty="Advanced"
+    ),
+
+    # ---- Level 6: Container ----
+    Question(
         id="container_q1",
         lesson_id="container_architecture",
         question_type="choice",
@@ -163,9 +246,27 @@ QUESTIONS = [
             "D. Encrypted inside the Magic Header block"
         ],
         correct_answer="C",
-        explanation="Cryptix Core operates on zero-knowledge local storage. Neither your password nor yourderived secret key is ever written to the disk. Only random salts, nonces, and tags are saved.",
+        explanation="Neither your password nor your derived secret key is ever written to the disk. Only random salts, nonces, and tags are saved. Keys are re-derived at runtime.",
         difficulty="Advanced"
     ),
+    Question(
+        id="container_q2",
+        lesson_id="container_architecture",
+        question_type="ordering",
+        question="Arrange the first 5 sequential components of the .cryptix binary header layout.",
+        options=[
+            "Magic Header (GCA1)",
+            "Format Version",
+            "Algorithm ID",
+            "Key Salt",
+            "Nonce/IV"
+        ],
+        correct_answer="0,1,2,3,4",
+        explanation="The container layout reads: Magic Header (4 bytes), version (1 byte), algorithm (1 byte), salt (16 bytes), and nonce/IV (12 or 24 bytes) in exact sequence.",
+        difficulty="Advanced"
+    ),
+
+    # ---- Level 7: Integrity & Tampering ----
     Question(
         id="integrity_q1",
         lesson_id="integrity_tampering",
@@ -179,6 +280,21 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="The Magic Header is evaluated in the first step. If the first 4 bytes do not match 'GCA1', the parser raises a FormatError immediately, aborting the workflow before any key processing starts.",
+        difficulty="Advanced"
+    ),
+    Question(
+        id="integrity_q2",
+        lesson_id="integrity_tampering",
+        question_type="choice",
+        question="What is Cryptix's response to an authentication tag mismatch during decryption?",
+        options=[
+            "A. It writes partially corrupted bytes to the filesystem",
+            "B. It prompts the user to enter a new salt",
+            "C. It halts immediately, throws AuthenticationError, and releases zero plaintext bytes",
+            "D. It attempts decryption using a fallback algorithm"
+        ],
+        correct_answer="C",
+        explanation="AEAD guarantees fail-closed security. Any modification or wrong password fails the MAC check. Decryption aborts instantly, releasing zero plaintext bytes to the system.",
         difficulty="Advanced"
     )
 ]
