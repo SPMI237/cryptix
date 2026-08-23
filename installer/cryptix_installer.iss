@@ -37,7 +37,7 @@ ChangesAssociations=yes
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
-OutputBaseFilename=CryptixCore_Installer_v1.3.0
+OutputBaseFilename=CryptixCore_Installer_v1.4.0
 SolidCompression=yes
 WizardStyle=modern dynamic
 
@@ -63,4 +63,3 @@ Type: filesandordirs; Name: "{userappdata}\Cryptix"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-
