@@ -410,14 +410,21 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(QLabel("Encryption Method"))
         settings_layout.addWidget(self.algorithm_selector)
 
-    # Dark Mode Toggle
+        # Dark Mode Toggle
         self.theme_toggle = AnimatedToggle()
         self.theme_toggle.setChecked(True)
         self.theme_toggle.stateChanged.connect(self.toggle_theme)
         settings_layout.addWidget(QLabel("Dark Mode"))
         settings_layout.addWidget(self.theme_toggle)
 
-    # About Button
+        # Learning Mode Toggle
+        self.learning_toggle = AnimatedToggle()
+        self.learning_toggle.setChecked(False)
+        self.learning_toggle.stateChanged.connect(self.toggle_learning_mode)
+        settings_layout.addWidget(QLabel("Learning Mode (Academy)"))
+        settings_layout.addWidget(self.learning_toggle)
+
+        # About Button
         self.about_button = QPushButton("About Cryptix Core")
         self.about_button.setStyleSheet("color: #00F0FF;")
         self.about_button.clicked.connect(self.show_about_dialog)
@@ -545,7 +552,8 @@ class MainWindow(QMainWindow):
         self.theme_toggle.stateChanged.connect(self.persist_settings)
         self.algorithm_selector.currentIndexChanged.connect(self.persist_settings)
         self.secure_delete_checkbox.stateChanged.connect(self.persist_settings)
-        self.secure_delete_after_decrypt_checkbox.stateChanged.connect(self.persist_settings)
+        self.secure_delete_after_decrypt_checkbox.connect(self.persist_settings)
+        self.learning_toggle.stateChanged.connect(self.persist_settings)
 
         # Pre-Flight Intelligence Row
         preflight_layout = QHBoxLayout()
@@ -608,11 +616,18 @@ class MainWindow(QMainWindow):
         self.status_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.status_label)
 
+        # Cryptix Academy Button (Hidden by default, shown when learning mode toggle is on)
+        self.academy_button = QPushButton("🎓 Open Cryptix Academy")
+        self.academy_button.setStyleSheet("color: #00F0FF; background-color: #131822; border: 1px solid #00F0FF; font-weight: bold; padding: 10px;")
+        self.academy_button.clicked.connect(self.start_academy)
+        self.academy_button.hide()
+        layout.addWidget(self.academy_button)
+
         # View Audit Log Button
         self.view_log_button = QPushButton("View Secure Audit Log")
         self.view_log_button.clicked.connect(self.show_audit_log)
         layout.addWidget(self.view_log_button)
-# Handle file passed via file association
+        # Handle file passed via file association
         if self.file_path:
             self.file_label.setText(f"Selected: {os.path.basename(self.file_path)}")
             self.validate_inputs()
@@ -640,6 +655,11 @@ class MainWindow(QMainWindow):
         self.secure_delete_after_decrypt_checkbox.setChecked(
             self.settings.get("secure_delete_decrypt", False)
         )
+
+        self.learning_toggle.setChecked(
+            self.settings.get("learning_mode", False)
+        )
+        self.toggle_learning_mode()
 
         self.drag_overlay.resize(self.centralWidget().size())
 
@@ -1163,11 +1183,12 @@ class MainWindow(QMainWindow):
     def persist_settings(self):
         data = {
             "dark_mode": self.theme_toggle.isChecked(),
+            "learning_mode": self.learning_toggle.isChecked(),
             "algorithm": self.algorithm_selector.currentData(),
             "secure_delete_encrypt": self.secure_delete_checkbox.isChecked(),
             "secure_delete_decrypt": self.secure_delete_after_decrypt_checkbox.isChecked()
         }
-        save_settings(data) 
+        save_settings(data)
     # =====================================================
     # Worker Thread Management
     # =====================================================
@@ -1687,4 +1708,14 @@ class MainWindow(QMainWindow):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.start_benchmark()
+
+    def start_academy(self):
+        from ui.academy_dialog import AcademyDialog
+        dialog = AcademyDialog(self)
+        dialog.exec()
+
+    def toggle_learning_mode(self):
+        is_on = self.learning_toggle.isChecked()
+        self.academy_button.setVisible(is_on)
+        self.persist_settings()
 

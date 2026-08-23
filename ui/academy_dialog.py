@@ -1,0 +1,469 @@
+# ui/academy_dialog.py
+
+import os
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QFrame,
+    QScrollArea,
+    QWidget,
+    QStackedWidget,
+    QMessageBox,
+    QButtonGroup,
+    QListWidget
+)
+from PySide6.QtCore import Qt
+from cryptix_academy.progress import ProgressStore
+from cryptix_academy.curriculum import get_lessons, get_questions_for_lesson
+from cryptix_academy.models import LearningProgress
+
+class AcademyDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle("Cryptix Academy - Cybersecurity Laboratory")
+        self.setMinimumWidth(550)
+        self.setMinimumHeight(600)
+        self.setStyleSheet(parent.styleSheet()) # Inherit dark tactical stylesheet
+
+        # Load dynamic progress
+        self.progress = ProgressStore.load_progress()
+        self.lessons = get_lessons()
+
+        self.init_ui()
+
+    def init_ui(self):
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(14)
+
+        # Header Title Area
+        header_layout = QHBoxLayout()
+        self.title_label = QLabel("🎓 CRYPTIX ACADEMY")
+        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #00F0FF; letter-spacing: 1px;")
+        header_layout.addWidget(self.title_label)
+
+        header_layout.addStretch()
+
+        self.xp_label = QLabel(f"XP: {self.progress.xp} | Level {self.progress.level}")
+        self.xp_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #00FF66;")
+        header_layout.addWidget(self.xp_label)
+
+        self.main_layout.addLayout(header_layout)
+
+        # Separator Line
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet("background-color: #262F3F; max-height: 1px;")
+        self.main_layout.addWidget(divider)
+
+        # Stacked Widget for Page Transitions
+        self.stacked_widget = QStackedWidget()
+        self.main_layout.addWidget(self.stacked_widget)
+
+        # Page 1: Curriculum Dashboard
+        self.dashboard_page = QWidget()
+        self.init_dashboard_page()
+        self.stacked_widget.addWidget(self.dashboard_page)
+
+        # Page 2: Lesson Viewer
+        self.lesson_page = QWidget()
+        self.stacked_widget.addWidget(self.lesson_page)
+
+        # Page 3: Challenge Viewer
+        self.challenge_page = QWidget()
+        self.stacked_widget.addWidget(self.challenge_page)
+
+        self.stacked_widget.setCurrentIndex(0)
+
+    # =========================================================
+    # Page 1: Curriculum Dashboard
+    # =========================================================
+    def init_dashboard_page(self):
+        dash_layout = QVBoxLayout(self.dashboard_page)
+        dash_layout.setContentsMargins(0, 0, 0, 0)
+        dash_layout.setSpacing(10)
+
+        desc = QLabel("Complete lessons and interactive challenges to master cryptographic engineering.")
+        desc.setStyleSheet("color: #A0AEC0; font-style: italic;")
+        desc.setWordWrap(True)
+        dash_layout.addWidget(desc)
+
+        # Scrollable level list
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border: 1px solid #262F3F; background-color: #0B0F19;")
+        dash_layout.addWidget(scroll)
+
+        scroll_content = QWidget()
+        self.level_list_layout = QVBoxLayout(scroll_content)
+        self.level_list_layout.setSpacing(8)
+        self.level_list_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.refresh_dashboard()
+
+        scroll.setWidget(scroll_content)
+
+        # Bottom Actions
+        bottom_box = QHBoxLayout()
+        reset_btn = QPushButton("Reset Progress")
+        reset_btn.setStyleSheet("color: #FF3B3B; padding: 6px;")
+        reset_btn.clicked.connect(self.reset_learning_progress)
+        bottom_box.addWidget(reset_btn)
+
+        bottom_box.addStretch()
+
+        close_btn = QPushButton("Close")
+        close_btn.setMinimumWidth(100)
+        close_btn.clicked.connect(self.accept)
+        bottom_box.addWidget(close_btn)
+
+        dash_layout.addLayout(bottom_box)
+
+    def refresh_dashboard(self):
+        # Clear existing items in layout
+        while self.level_list_layout.count():
+            item = self.level_list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Repopulate list
+        unlocked = True # First level is always unlocked
+        for idx, lesson in enumerate(self.lessons):
+            btn = QPushButton()
+            btn.setMinimumHeight(50)
+            btn.setStyleSheet("text-align: left; padding: 12px; font-weight: bold;")
+
+            completed = lesson.id in self.progress.completed_lessons
+
+            # Determine lock status and styling
+            if completed:
+                status_icon = "✓"
+                status_color = "#00FF66" # Green
+                btn.setEnabled(True)
+            elif unlocked:
+                status_icon = "🔓"
+                status_color = "#00F0FF" # Cyan
+                btn.setEnabled(True)
+                unlocked = False # Subsequent ones remain locked until current completed
+            else:
+                status_icon = "🔒"
+                status_color = "#4A5568" # Gray
+                btn.setEnabled(False)
+
+            btn.setText(f"{status_icon}  {lesson.title}")
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    text-align: left; 
+                    padding: 12px; 
+                    font-weight: bold;
+                    color: {status_color};
+                    background-color: #131822;
+                    border: 1px solid #262F3F;
+                }}
+                QPushButton:hover {{
+                    border: 1px solid {status_color};
+                }}
+            """)
+
+            # Connect transition closure
+            btn.clicked.connect(lambda checked=False, l=lesson: self.open_lesson(l))
+            self.level_list_layout.addWidget(btn)
+
+            # If the current level is completed, it unlocks the next level
+            if completed:
+                unlocked = True
+
+        self.level_list_layout.addStretch()
+        self.xp_label.setText(f"XP: {self.progress.xp} | Level {self.progress.level}")
+
+    # =========================================================
+    # Page 2: Lesson Viewer
+    # =========================================================
+    def open_lesson(self, lesson):
+        # Clear lesson page layout
+        if self.lesson_page.layout():
+            QWidget().setLayout(self.lesson_page.layout()) # Destroys layout safely
+
+        layout = QVBoxLayout(self.lesson_page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title = QLabel(lesson.title)
+        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #00F0FF;")
+        layout.addWidget(title)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border: 1px solid #262F3F; background-color: #0B0F19;")
+        layout.addWidget(scroll)
+
+        content_widget = QWidget()
+        text_layout = QVBoxLayout(content_widget)
+        text_layout.setSpacing(10)
+
+        # Primary content
+        content_label = QLabel(lesson.content)
+        content_label.setWordWrap(True)
+        content_label.setStyleSheet("color: #E2E8F0; font-size: 13px; line-height: 150%;")
+        text_layout.addWidget(content_label)
+
+        # Simple explanation
+        simple_title = QLabel("🟢 Simple Explanation")
+        simple_title.setStyleSheet("color: #00FF66; font-weight: bold; margin-top: 10px;")
+        simple_desc = QLabel(lesson.simple_explanation)
+        simple_desc.setWordWrap(True)
+        simple_desc.setStyleSheet("color: #A0AEC0; font-size: 12px;")
+        text_layout.addWidget(simple_title)
+        text_layout.addWidget(simple_desc)
+
+        # Technical explanation
+        tech_title = QLabel("🔵 Technical Explanation")
+        tech_title.setStyleSheet("color: #00F0FF; font-weight: bold; margin-top: 10px;")
+        tech_desc = QLabel(lesson.technical_explanation)
+        tech_desc.setWordWrap(True)
+        tech_desc.setStyleSheet("color: #A0AEC0; font-size: 12px;")
+        text_layout.addWidget(tech_title)
+        text_layout.addWidget(tech_desc)
+
+        # Security threat explanation
+        sec_title = QLabel("🔴 Security Value")
+        sec_title.setStyleSheet("color: #FF3B3B; font-weight: bold; margin-top: 10px;")
+        sec_desc = QLabel(lesson.security_explanation)
+        sec_desc.setWordWrap(True)
+        sec_desc.setStyleSheet("color: #A0AEC0; font-size: 12px;")
+        text_layout.addWidget(sec_title)
+        text_layout.addWidget(sec_desc)
+
+        scroll.setWidget(content_widget)
+
+        # Actions
+        btn_box = QHBoxLayout()
+        back_btn = QPushButton("← Dashboard")
+        back_btn.clicked.connect(self.go_to_dashboard)
+        btn_box.addWidget(back_btn)
+
+        btn_box.addStretch()
+
+        challenge_btn = QPushButton("📝 Start Interactive Challenge")
+        challenge_btn.setStyleSheet("background-color: #00AAFF; color: #FFFFFF; font-weight: bold;")
+        challenge_btn.clicked.connect(lambda: self.open_challenge(lesson))
+        btn_box.addWidget(challenge_btn)
+
+        layout.addLayout(btn_box)
+        self.stacked_widget.setCurrentIndex(1)
+
+    # =========================================================
+    # Page 3: Challenge Viewer
+    # =========================================================
+    def open_challenge(self, lesson):
+        # Fetch the questions for this lesson
+        questions = get_questions_for_lesson(lesson.id)
+        if not questions:
+            QMessageBox.information(self, "Curriculum Notification", "No challenges created for this level yet.")
+            return
+
+        # Load first uncompleted question, or fallback to first question
+        self.active_question = questions[0]
+        for q in questions:
+            if q.id not in self.progress.completed_challenges:
+                self.active_question = q
+                break
+
+        # Rebuild challenge page layout
+        if self.challenge_page.layout():
+            QWidget().setLayout(self.challenge_page.layout())
+
+        self.challenge_layout = QVBoxLayout(self.challenge_page)
+        self.challenge_layout.setContentsMargins(0, 0, 0, 0)
+        self.challenge_layout.setSpacing(14)
+
+        # Question header
+        category_label = QLabel(f"🎓 CHALLENGE — {lesson.category}")
+        category_label.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px;")
+        self.challenge_layout.addWidget(category_label)
+
+        question_label = QLabel(self.active_question.question)
+        question_label.setWordWrap(True)
+        question_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #E2E8F0;")
+        self.challenge_layout.addWidget(question_label)
+
+        # Render options based on Question Type
+        self.options_group = QButtonGroup(self)
+        self.options_buttons = []
+
+        if self.active_question.question_type == "choice" or self.active_question.question_type == "boolean":
+            # Multiple Choice or Boolean (True/False)
+            options_box = QVBoxLayout()
+            options_box.setSpacing(8)
+
+            for idx, option in enumerate(self.active_question.options):
+                opt_btn = QPushButton(option)
+                opt_btn.setCheckable(True)
+                opt_btn.setStyleSheet("""
+                    QPushButton {
+                        text-align: left;
+                        padding: 10px;
+                        background-color: #131822;
+                        border: 1px solid #262F3F;
+                        color: #A0AEC0;
+                    }
+                    QPushButton:checked {
+                        border: 1px solid #00F0FF;
+                        color: #00F0FF;
+                        background-color: #0F131C;
+                    }
+                """)
+                self.options_group.addButton(opt_btn, idx)
+                self.options_buttons.append(opt_btn)
+                options_box.addWidget(opt_btn)
+
+            self.challenge_layout.addLayout(options_box)
+
+        elif self.active_question.question_type == "ordering":
+            # Ordering Challenge
+            self.ordering_label = QLabel("Click the items below in the correct order:")
+            self.ordering_label.setStyleSheet("color: #A0AEC0; font-style: italic;")
+            self.challenge_layout.addWidget(self.ordering_label)
+
+            # Raw buttons to click
+            self.order_source_layout = QHBoxLayout()
+            self.order_source_layout.setSpacing(6)
+            self.ordered_selection_indices = []
+
+            for idx, option in enumerate(self.active_question.options):
+                item_btn = QPushButton(option)
+                item_btn.setMinimumHeight(36)
+                item_btn.clicked.connect(lambda checked=False, i=idx: self.select_ordering_item(i))
+                self.options_buttons.append(item_btn)
+                self.order_source_layout.addWidget(item_btn)
+
+            self.challenge_layout.addLayout(self.order_source_layout)
+
+            # Selection Result display
+            self.ordering_result_label = QLabel("Your Sequence: [ None ]")
+            self.ordering_result_label.setStyleSheet("color: #00F0FF; font-weight: bold; margin-top: 10px;")
+            self.challenge_layout.addWidget(self.ordering_result_label)
+
+            # Reset sequence button
+            self.clear_order_btn = QPushButton("Clear Sequence Selection")
+            self.clear_order_btn.setStyleSheet("color: gray; border: 1px dashed #262F3F; padding: 4px;")
+            self.clear_order_btn.clicked.connect(self.clear_ordering_sequence)
+            self.challenge_layout.addWidget(self.clear_order_btn)
+
+        # Action Buttons
+        btn_box = QHBoxLayout()
+        back_to_lesson_btn = QPushButton("← Lesson")
+        back_to_lesson_btn.clicked.connect(lambda: self.open_lesson(lesson))
+        btn_box.addWidget(back_to_lesson_btn)
+
+        btn_box.addStretch()
+
+        self.submit_btn = QPushButton("Submit Answer")
+        self.submit_btn.setMinimumWidth(120)
+        self.submit_btn.setStyleSheet("background-color: #00FF66; color: #000000; font-weight: bold;")
+        self.submit_btn.clicked.connect(lambda: self.submit_answer(lesson))
+        btn_box.addWidget(self.submit_btn)
+
+        self.challenge_layout.addLayout(btn_box)
+        self.stacked_widget.setCurrentIndex(2)
+
+    def select_ordering_item(self, idx):
+        if idx not in self.ordered_selection_indices:
+            self.ordered_selection_indices.append(idx)
+            self.options_buttons[idx].setEnabled(False) # Disable clicked button
+
+            # Update sequence string
+            sequence_text = " → ".join([self.active_question.options[i] for i in self.ordered_selection_indices])
+            self.ordering_result_label.setText(f"Your Sequence: [ {sequence_text} ]")
+
+    def clear_ordering_sequence(self):
+        self.ordered_selection_indices.clear()
+        self.ordering_result_label.setText("Your Sequence: [ None ]")
+        for btn in self.options_buttons:
+            btn.setEnabled(True)
+
+    def submit_answer(self, lesson):
+        # 1. Parse Answer based on type
+        student_answer = ""
+
+        if self.active_question.question_type == "choice" or self.active_question.question_type == "boolean":
+            checked_id = self.options_group.checkedId()
+            if checked_id == -1:
+                QMessageBox.warning(self, "Invalid Submission", "Please select an answer choice before submitting.")
+                return
+            
+            # Map choice index to letter option
+            if self.active_question.question_type == "choice":
+                student_answer = chr(65 + checked_id) # 0->A, 1->B, etc.
+            else:
+                # Boolean
+                student_answer = self.active_question.options[checked_id]
+
+        elif self.active_question.question_type == "ordering":
+            if len(self.ordered_selection_indices) < len(self.active_question.options):
+                QMessageBox.warning(self, "Invalid Submission", "Please order all items in the sequence before submitting.")
+                return
+            student_answer = ",".join([str(i) for i in self.ordered_selection_indices])
+
+        # 2. Check correctness
+        correct = (student_answer == self.active_question.correct_answer)
+
+        # 3. Award XP & Persist stats
+        if correct:
+            xp_reward = 15 if self.active_question.question_type == "ordering" else 10
+            
+            # Check if this challenge is already completed to avoid duplicate farming
+            if self.active_question.id not in self.progress.completed_challenges:
+                self.progress.completed_challenges.append(self.active_question.id)
+                self.progress.xp += xp_reward
+                
+                # Check for Level-Up threshold (e.g. every 50 XP represents a level)
+                self.progress.level = (self.progress.xp // 50) + 1
+
+            # Check if all challenges of this lesson are completed to unlock next lesson
+            questions = get_questions_for_lesson(lesson.id)
+            lesson_finished = all(q.id in self.progress.completed_challenges for q in questions)
+            if lesson_finished and lesson.id not in self.progress.completed_lessons:
+                self.progress.completed_lessons.append(lesson.id)
+
+            # Persist dynamic progress
+            ProgressStore.save_progress(self.progress)
+
+            # Show Success Dialog
+            QMessageBox.information(
+                self,
+                "✓ Correct!",
+                f"Excellent work!\n\n+{xp_reward} XP Gained.\n\n"
+                f"Explanation: {self.active_question.explanation}"
+            )
+            self.refresh_dashboard()
+            self.stacked_widget.setCurrentIndex(0)
+        else:
+            QMessageBox.critical(
+                self,
+                "❌ Incorrect",
+                f"That is incorrect. Try again!\n\n"
+                f"Hint: Review the Technical and Security guidelines in the lesson view."
+            )
+
+    # =========================================================
+    # Resets & Navigation Utilities
+    # =========================================================
+    def go_to_dashboard(self):
+        self.refresh_dashboard()
+        self.stacked_widget.setCurrentIndex(0)
+
+    def reset_learning_progress(self):
+        reply = QMessageBox.question(
+            self,
+            "Reset Learning Progress",
+            "Are you sure you want to permanently delete your Academy XP, Levels, and completed lessons?\n\nThis action cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.progress = ProgressStore.reset_progress()
+            self.refresh_dashboard()
+            QMessageBox.information(self, "Progress Reset", "Your Academy profile has been cleanly reset.")
