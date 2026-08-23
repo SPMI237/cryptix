@@ -5,16 +5,30 @@ from cryptix_academy.models import Lesson, Question, LearningProgress
 from cryptix_academy.progress import ProgressStore
 from cryptix_academy.curriculum import get_lessons, get_questions_for_lesson
 
-def test_curriculum_and_lessons():
+def test_curriculum_and_all_lessons():
     lessons = get_lessons()
-    assert len(lessons) >= 2
-    assert lessons[0].id == "crypto_fundamentals"
-    assert lessons[1].id == "kdf_argon2id"
+    assert len(lessons) == 7
+    
+    lesson_ids = [l.id for l in lessons]
+    expected_ids = [
+        "crypto_fundamentals",
+        "kdf_argon2id",
+        "salt_nonce_lab",
+        "aead_authentication",
+        "aad_metadata",
+        "container_architecture",
+        "integrity_tampering"
+    ]
+    assert lesson_ids == expected_ids
 
-    questions = get_questions_for_lesson("crypto_fundamentals")
-    assert len(questions) == 1
-    assert questions[0].id == "fundamentals_q1"
-    assert questions[0].correct_answer == "B"
+    # Verify that every lesson has exactly 1 high-quality question mapped to it
+    for l_id in expected_ids:
+        questions = get_questions_for_lesson(l_id)
+        assert len(questions) == 1
+        assert isinstance(questions[0], Question)
+        assert questions[0].lesson_id == l_id
+        assert len(questions[0].correct_answer) == 1
+        assert len(questions[0].options) == 4
 
 def test_progress_persistence_and_reset():
     # 1. Reset progress first to start clean
@@ -28,6 +42,7 @@ def test_progress_persistence_and_reset():
     progress.xp = 150
     progress.level = 2
     progress.completed_lessons.append("crypto_fundamentals")
+    progress.completed_lessons.append("kdf_argon2id")
     ProgressStore.save_progress(progress)
 
     # 3. Reload Progress
@@ -35,6 +50,7 @@ def test_progress_persistence_and_reset():
     assert loaded.xp == 150
     assert loaded.level == 2
     assert "crypto_fundamentals" in loaded.completed_lessons
+    assert "kdf_argon2id" in loaded.completed_lessons
 
     # 4. Reset and Verify Wiped
     reset_state = ProgressStore.reset_progress()
