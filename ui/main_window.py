@@ -552,7 +552,7 @@ class MainWindow(QMainWindow):
         self.theme_toggle.stateChanged.connect(self.persist_settings)
         self.algorithm_selector.currentIndexChanged.connect(self.persist_settings)
         self.secure_delete_checkbox.stateChanged.connect(self.persist_settings)
-        self.secure_delete_after_decrypt_checkbox.connect(self.persist_settings)
+        self.secure_delete_after_decrypt_checkbox.stateChanged.connect(self.persist_settings)
         self.learning_toggle.stateChanged.connect(self.persist_settings)
 
         # Pre-Flight Intelligence Row
