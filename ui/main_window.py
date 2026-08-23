@@ -247,7 +247,7 @@ class MainWindow(QMainWindow):
     def __init__(self, initial_file=None):
         super().__init__()
 
-        self.version = "1.3.0"
+        self.version = "1.4.0"
         self.setWindowTitle("Cryptix Core")
         import sys
         import os
@@ -547,38 +547,54 @@ class MainWindow(QMainWindow):
         self.secure_delete_checkbox.stateChanged.connect(self.persist_settings)
         self.secure_delete_after_decrypt_checkbox.stateChanged.connect(self.persist_settings)
 
-        # Buttons (Encrypt/Decrypt)
+        # Pre-Flight Intelligence Row
+        preflight_layout = QHBoxLayout()
+        preflight_layout.setSpacing(10)
+
+        self.simulate_button = QPushButton("📊 Run Pre-Flight Simulation")
+        self.simulate_button.setToolTip("Estimate time, container sizing, and memory peaks before encryption.")
+        self.simulate_button.setEnabled(False)
+        self.simulate_button.clicked.connect(self.start_simulation)
+        self.simulate_button.setStyleSheet("color: #00F0FF; border: 1px dashed #262F3F;")
+
+        self.assess_button = QPushButton("🛡️ Open Security Advisor")
+        self.assess_button.setToolTip("Evaluate password entropy and security risk profiles.")
+        self.assess_button.clicked.connect(self.start_assessment)
+        self.assess_button.setStyleSheet("color: #00FF66; border: 1px dashed #262F3F;")
+
+        preflight_layout.addWidget(self.simulate_button)
+        preflight_layout.addWidget(self.assess_button)
+        layout.addLayout(preflight_layout)
+
+        # Divider between Pre-Flight and Core Action buttons
+        divider3 = QFrame()
+        divider3.setFrameShape(QFrame.Shape.HLine)
+        divider3.setStyleSheet("background-color: #262F3F; max-height: 1px;")
+        layout.addWidget(divider3)
+
+        # Core Action Buttons (Encrypt/Decrypt/Verify/Analyze)
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(8)
 
         self.encrypt_button = QPushButton("Encrypt")
         self.decrypt_button = QPushButton("Decrypt")
         self.verify_button = QPushButton("Verify")
-
         self.analyze_button = QPushButton("Analyze")
-        self.analyze_button.setEnabled(False)
-        self.analyze_button.clicked.connect(self.start_analyze)
 
-        self.assess_button = QPushButton("Security Advisor")
-        self.assess_button.clicked.connect(self.start_assessment)
-
-        self.simulate_button = QPushButton("Simulation")
-        self.simulate_button.setEnabled(False)
-        self.simulate_button.clicked.connect(self.start_simulation)
-        
         self.encrypt_button.clicked.connect(self.start_encrypt)
         self.decrypt_button.clicked.connect(self.start_decrypt)
         self.verify_button.clicked.connect(self.start_verify)
+        self.analyze_button.clicked.connect(self.start_analyze)
 
         self.encrypt_button.setEnabled(False)
         self.decrypt_button.setEnabled(False)
         self.verify_button.setEnabled(False)
+        self.analyze_button.setEnabled(False)
 
         button_layout.addWidget(self.encrypt_button)
         button_layout.addWidget(self.decrypt_button)
         button_layout.addWidget(self.verify_button)
         button_layout.addWidget(self.analyze_button)
-        button_layout.addWidget(self.assess_button)
-        button_layout.addWidget(self.simulate_button)
         
         layout.addLayout(button_layout)
 
@@ -682,11 +698,13 @@ class MainWindow(QMainWindow):
         • Container Structure Analysis<br>
         • Authenticated Container Analysis<br>
         • Deterministic Container Fingerprint<br>
-        • Security Advisor (Pre‑Encryption Assessment)<br><br>
+        • Security Advisor (Pre‑Encryption Assessment)<br>
+        • Pre-Flight Simulation Mode (Hardware Calibration)<br><br>
 
         <b>Cryptographic Primitives:</b><br>
-        • AES‑256‑GCM (AEAD)<br>
-        • ChaCha20‑Poly1305 (AEAD)<br>
+        • AES‑256‑GCM (AEAD, 12-byte nonce)<br>
+        • ChaCha20‑Poly1305 (AEAD, 12-byte nonce)<br>
+        • XChaCha20‑Poly1305 (Collision-Resistant AEAD, 24-byte nonce)<br>
         • Argon2id (100MB memory‑hard key derivation)<br><br>
 
         <b>Explainable Security Principle:</b><br>
