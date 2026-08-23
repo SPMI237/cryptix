@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Cryptix Core"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "Michel Idriss"
 #define MyAppURL "https://github.com/SPMI237/cryptix"
 #define MyAppExeName "CryptixCore.exe"
