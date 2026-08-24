@@ -414,6 +414,10 @@ class AcademyDialog(QDialog):
         self.hint_display_label.setText(hint_text)
         self.hint_display_label.show()
 
+        # If all hints are revealed (hint_level reaches 3), show exhaustion state
+        if self.active_session.hint_level >= 3:
+            self.hint_btn.setText("💡 All hints revealed")
+            self.hint_btn.setEnabled(False)
     def select_ordering_item(self, idx):
         if idx not in self.ordered_selection_indices:
             self.ordered_selection_indices.append(idx)
