@@ -432,6 +432,9 @@ class AcademyDialog(QDialog):
             # Persist dynamic progress
             ProgressStore.save_progress(self.progress)
 
+            # Instantly update XP label inside active challenge window
+            self.update_xp_header()
+
             # Show Success Dialog
             QMessageBox.information(
                 self,
@@ -467,6 +470,9 @@ class AcademyDialog(QDialog):
     # =========================================================
     # Resets & Navigation Utilities
     # =========================================================
+    def update_xp_header(self):
+        self.xp_label.setText(f"XP: {self.progress.xp} | Level {self.progress.level}")
+
     def go_to_dashboard(self):
         self.refresh_dashboard()
         self.stacked_widget.setCurrentIndex(0)

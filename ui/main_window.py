@@ -260,7 +260,7 @@ class MainWindow(QMainWindow):
 
         icon_path = os.path.join(base_path, "cryptix.ico")
         self.setWindowIcon(QIcon(icon_path))
-        self.setGeometry(200, 200, 650, 600) # Adjusted height
+        self.resize(650, 600)
 
        
 
@@ -1181,13 +1181,13 @@ class MainWindow(QMainWindow):
      self.confirm_input.setEchoMode(mode)
 
     def persist_settings(self):
-        data = {
-            "dark_mode": self.theme_toggle.isChecked(),
-            "learning_mode": self.learning_toggle.isChecked(),
-            "algorithm": self.algorithm_selector.currentData(),
-            "secure_delete_encrypt": self.secure_delete_checkbox.isChecked(),
-            "secure_delete_decrypt": self.secure_delete_after_decrypt_checkbox.isChecked()
-        }
+        # Load existing settings first to preserve other keys (like hardware_profile and learning_profile)
+        data = load_settings()
+        data["dark_mode"] = self.theme_toggle.isChecked()
+        data["learning_mode"] = self.learning_toggle.isChecked()
+        data["algorithm"] = self.algorithm_selector.currentData()
+        data["secure_delete_encrypt"] = self.secure_delete_checkbox.isChecked()
+        data["secure_delete_decrypt"] = self.secure_delete_after_decrypt_checkbox.isChecked()
         save_settings(data)
     # =====================================================
     # Worker Thread Management
