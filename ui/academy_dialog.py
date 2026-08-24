@@ -553,4 +553,3 @@ class AcademyDialog(QDialog):
             self.progress = ProgressStore.reset_progress()
             self.refresh_dashboard()
             QMessageBox.information(self, "Progress Reset", "Your Academy profile has been cleanly reset.")
- 

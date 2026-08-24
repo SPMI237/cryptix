@@ -118,10 +118,15 @@ def test_progress_does_not_duplicate_challenges():
     # Simulate solving the same question ID multiple times
     for _ in range(3):
         if "fundamentals_q1" not in progress.completed_challenges:
-            progress.completed_challenges.append("fundamentals_q1")
+            progress.completed_challenges["fundamentals_q1"] = {
+                "attempts": 1,
+                "hints_used": 0,
+                "xp": 10,
+                "first_attempt": True
+            }
             
     assert len(progress.completed_challenges) == 1
-    assert progress.completed_challenges == ["fundamentals_q1"]
+    assert "fundamentals_q1" in progress.completed_challenges
 
 def test_sequential_level_unlocking():
     progress = ProgressStore.reset_progress()

@@ -42,6 +42,6 @@ class LearningProgress:
     xp: int = 0
     level: int = 1
     completed_lessons: List[str] = field(default_factory=list)
-    completed_challenges: List[str] = field(default_factory=list)
+    completed_challenges: dict = field(default_factory=dict)
     first_attempt_successes: int = 0
     total_attempts: int = 0
