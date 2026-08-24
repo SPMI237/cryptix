@@ -24,8 +24,8 @@ class AcademyDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle("Cryptix Academy - Cybersecurity Laboratory")
-        self.setMinimumWidth(550)
-        self.setMinimumHeight(600)
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(650)
         self.setStyleSheet(parent.styleSheet()) # Inherit dark tactical stylesheet
 
         # Load dynamic progress
@@ -419,15 +419,15 @@ class AcademyDialog(QDialog):
             if self.active_question.id not in self.progress.completed_challenges:
                 self.progress.completed_challenges.append(self.active_question.id)
                 self.progress.xp += xp_reward
-                
-                # Check for Level-Up threshold (e.g. every 50 XP represents a level)
-                self.progress.level = (self.progress.xp // 50) + 1
 
             # Check if all challenges of this lesson are completed to unlock next lesson
             questions = get_questions_for_lesson(lesson.id)
             lesson_finished = all(q.id in self.progress.completed_challenges for q in questions)
             if lesson_finished and lesson.id not in self.progress.completed_lessons:
                 self.progress.completed_lessons.append(lesson.id)
+
+            # Level directly matches the maximum level milestone reached/unlocked
+            self.progress.level = len(self.progress.completed_lessons) + 1
 
             # Persist dynamic progress
             ProgressStore.save_progress(self.progress)
@@ -439,8 +439,23 @@ class AcademyDialog(QDialog):
                 f"Excellent work!\n\n+{xp_reward} XP Gained.\n\n"
                 f"Explanation: {self.active_question.explanation}"
             )
-            self.refresh_dashboard()
-            self.stacked_widget.setCurrentIndex(0)
+
+            # Check if there are more uncompleted questions in this active lesson
+            uncompleted_questions = [q for q in questions if q.id not in self.progress.completed_challenges]
+
+            if uncompleted_questions:
+                # Flow smoothly to the next question of the same lesson
+                self.open_challenge(lesson)
+            else:
+                # All questions for this lesson are complete!
+                QMessageBox.information(
+                    self,
+                    "🎉 Level Completed!",
+                    f"Congratulations! You have completed all challenges for:\n'{lesson.title}'.\n\n"
+                    f"The next Level has been unlocked on your Dashboard!"
+                )
+                self.refresh_dashboard()
+                self.stacked_widget.setCurrentIndex(0)
         else:
             QMessageBox.critical(
                 self,
