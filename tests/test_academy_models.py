@@ -47,12 +47,16 @@ def test_progress_persistence_and_reset():
     assert progress.xp == 0
     assert progress.level == 1
     assert len(progress.completed_lessons) == 0
+    assert progress.first_attempt_successes == 0
+    assert progress.total_attempts == 0
 
     # 2. Modify and Save Progress
     progress.xp = 150
     progress.level = 2
     progress.completed_lessons.append("crypto_fundamentals")
     progress.completed_lessons.append("kdf_argon2id")
+    progress.first_attempt_successes = 1
+    progress.total_attempts = 3
     ProgressStore.save_progress(progress)
 
     # 3. Reload Progress
@@ -61,11 +65,15 @@ def test_progress_persistence_and_reset():
     assert loaded.level == 2
     assert "crypto_fundamentals" in loaded.completed_lessons
     assert "kdf_argon2id" in loaded.completed_lessons
+    assert loaded.first_attempt_successes == 1
+    assert loaded.total_attempts == 3
 
     # 4. Reset and Verify Wiped
     reset_state = ProgressStore.reset_progress()
     assert reset_state.xp == 0
     assert len(reset_state.completed_lessons) == 0
+    assert reset_state.first_attempt_successes == 0
+    assert reset_state.total_attempts == 0
     
     # Reload should be clean
     reloaded = ProgressStore.load_progress()

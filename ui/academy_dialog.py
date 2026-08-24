@@ -53,6 +53,11 @@ class AcademyDialog(QDialog):
 
         self.main_layout.addLayout(header_layout)
 
+        # Accuracies Row
+        self.accuracies_label = QLabel("")
+        self.accuracies_label.setStyleSheet("font-size: 11px; color: #A0AEC0; font-weight: bold;")
+        self.main_layout.addWidget(self.accuracies_label)
+
         # Separator Line
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
@@ -177,7 +182,7 @@ class AcademyDialog(QDialog):
                 unlocked = True
 
         self.level_list_layout.addStretch()
-        self.xp_label.setText(f"XP: {self.progress.xp} | Level {self.progress.level}")
+        self.update_xp_header()
 
     # =========================================================
     # Page 2: Lesson Viewer
@@ -430,6 +435,9 @@ class AcademyDialog(QDialog):
             student_answer = ",".join([str(i) for i in self.ordered_selection_indices])
 
         # 2. Run Engine Evaluation
+        # Increment total attempts globally
+        self.progress.total_attempts += 1
+
         res = self.active_session.evaluate(student_answer)
 
         # 3. Handle result
@@ -440,6 +448,10 @@ class AcademyDialog(QDialog):
             if self.active_question.id not in self.progress.completed_challenges:
                 self.progress.completed_challenges.append(self.active_question.id)
                 self.progress.xp += xp_reward
+                
+                # Increment first attempt success counter if answered correctly on first try!
+                if self.active_session.attempts == 1:
+                    self.progress.first_attempt_successes += 1
 
             # Check if all challenges of this lesson are completed to unlock next lesson
             questions = get_questions_for_lesson(lesson.id)
@@ -498,6 +510,15 @@ class AcademyDialog(QDialog):
     # =========================================================
     def update_xp_header(self):
         self.xp_label.setText(f"XP: {self.progress.xp} | Level {self.progress.level}")
+        
+        # Calculate accuracies safely
+        total_completed = len(self.progress.completed_challenges)
+        first_attempt_pct = (self.progress.first_attempt_successes / total_completed * 100.0) if total_completed > 0 else 100.0
+        completion_pct = (total_completed / self.progress.total_attempts * 100.0) if self.progress.total_attempts > 0 else 100.0
+
+        self.accuracies_label.setText(
+            f"First-Attempt Accuracy: {first_attempt_pct:.1f}%  |  Completion Accuracy: {completion_pct:.1f}%"
+        )
 
     def go_to_dashboard(self):
         self.refresh_dashboard()

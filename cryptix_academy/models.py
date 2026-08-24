@@ -39,3 +39,5 @@ class LearningProgress:
     level: int = 1
     completed_lessons: List[str] = field(default_factory=list)
     completed_challenges: List[str] = field(default_factory=list)
+    first_attempt_successes: int = 0
+    total_attempts: int = 0

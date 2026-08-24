@@ -21,7 +21,9 @@ class ProgressStore:
             xp=profile_data.get("xp", 0),
             level=profile_data.get("level", 1),
             completed_lessons=profile_data.get("completed_lessons", []),
-            completed_challenges=profile_data.get("completed_challenges", [])
+            completed_challenges=profile_data.get("completed_challenges", []),
+            first_attempt_successes=profile_data.get("first_attempt_successes", 0),
+            total_attempts=profile_data.get("total_attempts", 0)
         )
 
     @staticmethod
@@ -35,7 +37,9 @@ class ProgressStore:
             "xp": progress.xp,
             "level": progress.level,
             "completed_lessons": list(progress.completed_lessons),
-            "completed_challenges": list(progress.completed_challenges)
+            "completed_challenges": list(progress.completed_challenges),
+            "first_attempt_successes": progress.first_attempt_successes,
+            "total_attempts": progress.total_attempts
         }
         save_settings(settings)
 
