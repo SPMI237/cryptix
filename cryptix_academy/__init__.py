@@ -3,6 +3,7 @@
 from .models import Lesson, Question, ChallengeResult, LearningProgress
 from .progress import ProgressStore
 from .curriculum import get_lessons, get_questions_for_lesson
+from .engine import ChallengeSession, STATE_NOT_STARTED, STATE_ACTIVE, STATE_FAILED_ATTEMPT, STATE_COMPLETED
 
 __all__ = [
     "Lesson",
@@ -12,4 +13,9 @@ __all__ = [
     "ProgressStore",
     "get_lessons",
     "get_questions_for_lesson",
+    "ChallengeSession",
+    "STATE_NOT_STARTED",
+    "STATE_ACTIVE",
+    "STATE_FAILED_ATTEMPT",
+    "STATE_COMPLETED",
 ]

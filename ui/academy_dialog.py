@@ -272,6 +272,10 @@ class AcademyDialog(QDialog):
                 self.active_question = q
                 break
 
+        # Instantiate Challenge Session Engine
+        from cryptix_academy.engine import ChallengeSession
+        self.active_session = ChallengeSession(self.active_question, lesson)
+
         # Rebuild challenge page layout
         if self.challenge_page.layout():
             QWidget().setLayout(self.challenge_page.layout())
@@ -289,6 +293,13 @@ class AcademyDialog(QDialog):
         question_label.setWordWrap(True)
         question_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #E2E8F0;")
         self.challenge_layout.addWidget(question_label)
+
+        # Hint Box (Hidden by default)
+        self.hint_display_label = QLabel("")
+        self.hint_display_label.setWordWrap(True)
+        self.hint_display_label.setStyleSheet("color: #00F0FF; background-color: #131822; padding: 10px; border: 1px dashed #262F3F; font-size: 11px;")
+        self.hint_display_label.hide()
+        self.challenge_layout.addWidget(self.hint_display_label)
 
         # Render options based on Question Type
         self.options_group = QButtonGroup(self)
@@ -359,6 +370,11 @@ class AcademyDialog(QDialog):
         back_to_lesson_btn.clicked.connect(lambda: self.open_lesson(lesson))
         btn_box.addWidget(back_to_lesson_btn)
 
+        self.hint_btn = QPushButton("💡 Request Hint")
+        self.hint_btn.clicked.connect(self.request_hint_action)
+        self.hint_btn.setStyleSheet("color: #00F0FF; border: 1px dashed #262F3F;")
+        btn_box.addWidget(self.hint_btn)
+
         btn_box.addStretch()
 
         self.submit_btn = QPushButton("Submit Answer")
@@ -369,6 +385,11 @@ class AcademyDialog(QDialog):
 
         self.challenge_layout.addLayout(btn_box)
         self.stacked_widget.setCurrentIndex(2)
+
+    def request_hint_action(self):
+        hint_text = self.active_session.request_next_hint()
+        self.hint_display_label.setText(hint_text)
+        self.hint_display_label.show()
 
     def select_ordering_item(self, idx):
         if idx not in self.ordered_selection_indices:
@@ -408,12 +429,12 @@ class AcademyDialog(QDialog):
                 return
             student_answer = ",".join([str(i) for i in self.ordered_selection_indices])
 
-        # 2. Check correctness
-        correct = (student_answer == self.active_question.correct_answer)
+        # 2. Run Engine Evaluation
+        res = self.active_session.evaluate(student_answer)
 
-        # 3. Award XP & Persist stats
-        if correct:
-            xp_reward = 15 if self.active_question.question_type == "ordering" else 10
+        # 3. Handle result
+        if res["correct"]:
+            xp_reward = res["xp_earned"]
             
             # Check if this challenge is already completed to avoid duplicate farming
             if self.active_question.id not in self.progress.completed_challenges:
@@ -426,8 +447,14 @@ class AcademyDialog(QDialog):
             if lesson_finished and lesson.id not in self.progress.completed_lessons:
                 self.progress.completed_lessons.append(lesson.id)
 
-            # Level directly matches the maximum level milestone reached/unlocked
-            self.progress.level = len(self.progress.completed_lessons) + 1
+            # Level directly matches the maximum sequential level milestone unlocked/reached
+            current_level = 1
+            for l in self.lessons:
+                if l.id in self.progress.completed_lessons:
+                    current_level += 1
+                else:
+                    break
+            self.progress.level = current_level
 
             # Persist dynamic progress
             ProgressStore.save_progress(self.progress)
@@ -440,7 +467,7 @@ class AcademyDialog(QDialog):
                 self,
                 "✓ Correct!",
                 f"Excellent work!\n\n+{xp_reward} XP Gained.\n\n"
-                f"Explanation: {self.active_question.explanation}"
+                f"Explanation: {res['explanation']}"
             )
 
             # Check if there are more uncompleted questions in this active lesson
@@ -463,8 +490,7 @@ class AcademyDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "❌ Incorrect",
-                f"That is incorrect. Try again!\n\n"
-                f"Hint: Review the Technical and Security guidelines in the lesson view."
+                res["feedback"]
             )
 
     # =========================================================
