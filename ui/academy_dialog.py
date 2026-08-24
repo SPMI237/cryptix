@@ -127,6 +127,23 @@ class AcademyDialog(QDialog):
 
         dash_layout.addLayout(bottom_box)
 
+    def calculate_lesson_mastery(self, lesson_id: str) -> float:
+        """
+        Calculates diagnostic concept mastery % based on first-attempt accuracy
+        over all questions inside the target lesson.
+        """
+        questions = get_questions_for_lesson(lesson_id)
+        if not questions:
+            return 0.0
+        
+        first_attempt_correct = 0
+        for q in questions:
+            q_trace = self.progress.completed_challenges.get(q.id)
+            if q_trace and q_trace.get("first_attempt", False):
+                first_attempt_correct += 1
+                
+        return (first_attempt_correct / len(questions)) * 100.0
+
     def refresh_dashboard(self):
         # Clear existing items in layout
         while self.level_list_layout.count():
@@ -138,10 +155,11 @@ class AcademyDialog(QDialog):
         unlocked = True # First level is always unlocked
         for idx, lesson in enumerate(self.lessons):
             btn = QPushButton()
-            btn.setMinimumHeight(50)
+            btn.setMinimumHeight(55)
             btn.setStyleSheet("text-align: left; padding: 12px; font-weight: bold;")
 
             completed = lesson.id in self.progress.completed_lessons
+            mastery = self.calculate_lesson_mastery(lesson.id)
 
             # Determine lock status and styling
             if completed:
@@ -158,7 +176,7 @@ class AcademyDialog(QDialog):
                 status_color = "#4A5568" # Gray
                 btn.setEnabled(False)
 
-            btn.setText(f"{status_icon}  {lesson.title}")
+            btn.setText(f"{status_icon}  [Mastery: {mastery:.0f}%]  {lesson.title}")
             btn.setStyleSheet(f"""
                 QPushButton {{
                     text-align: left; 
@@ -535,3 +553,4 @@ class AcademyDialog(QDialog):
             self.progress = ProgressStore.reset_progress()
             self.refresh_dashboard()
             QMessageBox.information(self, "Progress Reset", "Your Academy profile has been cleanly reset.")
+ 
