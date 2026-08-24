@@ -83,3 +83,25 @@ def test_progress_persistence_and_reset():
     # Reload should be clean
     reloaded = ProgressStore.load_progress()
     assert reloaded.xp == 0
+
+def test_legacy_progress_list_schema_migration():
+    # 1. Preset legacy progress dictionary with a flat list structure
+    from utils.settings import load_settings, save_settings
+    settings = load_settings()
+    settings["learning_profile"] = {
+        "schema_version": 1,
+        "xp": 20,
+        "level": 1,
+        "completed_lessons": ["crypto_fundamentals"],
+        "completed_challenges": ["fundamentals_q1", "fundamentals_q2"],
+        "first_attempt_successes": 2,
+        "total_attempts": 2
+    }
+    save_settings(settings)
+
+    # 2. Trigger loading (should execute the migration layer automatically)
+    progress = ProgressStore.load_progress()
+    assert isinstance(progress.completed_challenges, dict)
+    assert "fundamentals_q1" in progress.completed_challenges
+    assert progress.completed_challenges["fundamentals_q1"]["attempts"] == 1
+    assert progress.completed_challenges["fundamentals_q1"]["first_attempt"] is True

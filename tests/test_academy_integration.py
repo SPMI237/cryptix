@@ -22,7 +22,12 @@ def test_unrelated_settings_preservation_on_save():
     progress = ProgressStore.reset_progress()
     progress.xp = 180
     progress.level = 3
-    progress.completed_challenges.append("fundamentals_q1")
+    progress.completed_challenges["fundamentals_q1"] = {
+        "attempts": 1,
+        "hints_used": 0,
+        "xp": 10,
+        "first_attempt": True
+    }
     ProgressStore.save_progress(progress)
 
     # 3. Load settings back and assert unrelated settings remain intact!

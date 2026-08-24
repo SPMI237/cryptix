@@ -458,13 +458,21 @@ class AcademyDialog(QDialog):
 
         res = self.active_session.evaluate(student_answer)
 
+        # Record pre-submission level for sequential level-up detection
+        old_level = self.progress.level
+
         # 3. Handle result
         if res.correct:
             xp_reward = res.score
             
             # Check if this challenge is already completed to avoid duplicate farming
             if self.active_question.id not in self.progress.completed_challenges:
-                self.progress.completed_challenges.append(self.active_question.id)
+                self.progress.completed_challenges[self.active_question.id] = {
+                    "attempts": res.attempts,
+                    "hints_used": res.hint_level,
+                    "xp": xp_reward,
+                    "first_attempt": (res.attempts == 1)
+                }
                 self.progress.xp += xp_reward
                 
                 # Increment first attempt success counter if answered correctly on first try!
@@ -508,12 +516,25 @@ class AcademyDialog(QDialog):
                 self.open_challenge(lesson)
             else:
                 # All questions for this lesson are complete!
-                QMessageBox.information(
-                    self,
-                    "🎉 Level Completed!",
-                    f"Congratulations! You have completed all challenges for:\n'{lesson.title}'.\n\n"
-                    f"The next Level has been unlocked on your Dashboard!"
-                )
+                # Show Level-Up Popup if consecutive levels unlocked
+                if self.progress.level > old_level:
+                    unlocked_lesson = self.lessons[self.progress.level - 1] if (self.progress.level - 1) < len(self.lessons) else None
+                    next_title = unlocked_lesson.title if unlocked_lesson else "Master Cryptographer"
+                    QMessageBox.information(
+                        self,
+                        "🏆 LEVEL UP!",
+                        f"CONGRATULATIONS!\n\n"
+                        f"You have leveled up to Level {self.progress.level}!\n\n"
+                        f"Newly Unlocked milestone:\n'{next_title}'\n\n"
+                        f"Your concept mastery has been stored on your Dashboard."
+                    )
+                else:
+                    QMessageBox.information(
+                        self,
+                        "🎉 Lesson Completed!",
+                        f"Congratulations! You have completed all challenges for:\n'{lesson.title}'.\n\n"
+                        f"Select your next task from your Dashboard!"
+                    )
                 self.refresh_dashboard()
                 self.stacked_widget.setCurrentIndex(0)
         else:
