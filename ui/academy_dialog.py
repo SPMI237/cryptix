@@ -441,8 +441,8 @@ class AcademyDialog(QDialog):
         res = self.active_session.evaluate(student_answer)
 
         # 3. Handle result
-        if res["correct"]:
-            xp_reward = res["xp_earned"]
+        if res.correct:
+            xp_reward = res.score
             
             # Check if this challenge is already completed to avoid duplicate farming
             if self.active_question.id not in self.progress.completed_challenges:
@@ -450,7 +450,7 @@ class AcademyDialog(QDialog):
                 self.progress.xp += xp_reward
                 
                 # Increment first attempt success counter if answered correctly on first try!
-                if self.active_session.attempts == 1:
+                if res.attempts == 1:
                     self.progress.first_attempt_successes += 1
 
             # Check if all challenges of this lesson are completed to unlock next lesson
@@ -479,7 +479,7 @@ class AcademyDialog(QDialog):
                 self,
                 "✓ Correct!",
                 f"Excellent work!\n\n+{xp_reward} XP Gained.\n\n"
-                f"Explanation: {res['explanation']}"
+                f"Explanation: {res.explanation}"
             )
 
             # Check if there are more uncompleted questions in this active lesson
@@ -502,7 +502,7 @@ class AcademyDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "❌ Incorrect",
-                res["feedback"]
+                res.feedback
             )
 
     # =========================================================
