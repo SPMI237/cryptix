@@ -90,7 +90,12 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="Symmetric encryption scrambles plaintext into ciphertext, guaranteeing data confidentiality so that unauthorized parties without the key see only random noise.",
-        difficulty="Beginner"
+        difficulty="Beginner",
+        feedback_by_answer={
+            "A": "Incorrect. While zip compressing saves space, symmetric cryptography's primary goal is secrecy.",
+            "C": "Incorrect. Digital signatures and public-key cryptosystems verify sender identity, not standard symmetric blocks.",
+            "D": "Incorrect. Anti-malware software blocks malicious payloads. Cryptography only protects data secrecy."
+        }
     ),
     Question(
         id="fundamentals_q2",
@@ -123,7 +128,12 @@ QUESTIONS = [
         ],
         correct_answer="A",
         explanation="AES requires a uniform 256-bit high-entropy binary key. Humans choose low-entropy passwords. Argon2id is required to derive a random 256-bit key from the password safely.",
-        difficulty="Intermediate"
+        difficulty="Intermediate",
+        feedback_by_answer={
+            "B": "Incorrect. Passwords do not corrupt writing systems directly; they are simply mathematically insecure.",
+            "C": "Incorrect. Standard passwords can derive keys for any binary file types, but lack the block entropy size required by AES.",
+            "D": "Incorrect. A password directly used would bypass nothing, but is easily cracked due to its extremely low entropy."
+        }
     ),
     Question(
         id="kdf_q2",
@@ -138,7 +148,12 @@ QUESTIONS = [
         ],
         correct_answer="C",
         explanation="A unique random salt is combined with the password. This ensures identical passwords derive highly divergent keys, preventing cross-file correlation and dictionary attacks.",
-        difficulty="Intermediate"
+        difficulty="Intermediate",
+        feedback_by_answer={
+            "A": "Incorrect. The selected algorithm is fully static and does not dynamically alter to generate keys.",
+            "B": "Incorrect. Version numbers are global and static. They do not vary based on user passwords.",
+            "D": "Incorrect. Cryptix Core is offline and does not collect, mix, or require email IDs."
+        }
     ),
 
     # ---- Level 3: Salts & Nonces ----
@@ -155,7 +170,12 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="Nonces/IVs ensure semantic security. If the same file is encrypted twice with the same key, different nonces guarantee completely different ciphertexts, preventing pattern leaks.",
-        difficulty="Intermediate"
+        difficulty="Intermediate",
+        feedback_by_answer={
+            "A": "Incorrect. Plaintext file sizes are inherently visible in the ciphertext block length. Nonces do not hide lengths.",
+            "C": "Incorrect. Nonces are completely public headers and must NEVER hold copies of sensitive user passwords.",
+            "D": "Incorrect. Nonces belong only to the AEAD cipher stream. They have no influence on Argon2 KDF execution speed."
+        }
     ),
     Question(
         id="salt_nonce_q2",
@@ -185,7 +205,12 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="Releasing unauthenticated plaintext is a critical security vulnerability. Attackers can manipulate ciphertext bytes and observe decrypted outputs to reverse-engineer data.",
-        difficulty="Advanced"
+        difficulty="Advanced",
+        feedback_by_answer={
+            "A": "Incorrect. Integrity verification does not influence filesystem size limits.",
+            "C": "Incorrect. Failed decryptions do not affect your local persistent settings.json file.",
+            "D": "Incorrect. The encryption protocol remains unchanged on file errors."
+        }
     ),
     Question(
         id="aead_q2",
@@ -215,7 +240,12 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="AAD is not encrypted (it remains public in the header), but it is cryptographically bound into the integrity check. Changing a single character in the filename breaks the MAC check.",
-        difficulty="Advanced"
+        difficulty="Advanced",
+        feedback_by_answer={
+            "A": "Incorrect. AAD does not encrypt headers. The filename is readable, but completely authenticated against alteration.",
+            "C": "Incorrect. AAD binds the literal raw filename bytes and performs zero compression operations.",
+            "D": "Incorrect. Cryptix Core is local-first. It does not send files or names to online APIs."
+        }
     ),
     Question(
         id="aad_q2",
@@ -230,7 +260,12 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="AAD allows non-secret parameters (like headers and filenames) to remain readable, while fully guaranteeing that they cannot be modified or replaced by an attacker.",
-        difficulty="Advanced"
+        difficulty="Advanced",
+        feedback_by_answer={
+            "A": "Incorrect. AAD is exactly the opposite: public but validated. Traditional payload blocks are encrypted and verified.",
+            "C": "Incorrect. AAD is composed of plain bytes and is independent of KDF key forge generators.",
+            "D": "Incorrect. The filename size is variable, so AAD size expands dynamically to match."
+        }
     ),
 
     # ---- Level 6: Container ----
@@ -247,7 +282,12 @@ QUESTIONS = [
         ],
         correct_answer="C",
         explanation="Neither your password nor your derived secret key is ever written to the disk. Only random salts, nonces, and tags are saved. Keys are re-derived at runtime.",
-        difficulty="Advanced"
+        difficulty="Advanced",
+        feedback_by_answer={
+            "A": "Incorrect. Storing secret parameters inside or near ciphertext blocks allows attackers to decrypt containers directly.",
+            "B": "Incorrect. Salt headers are entirely public and cannot hold copy structures of secret derived keys.",
+            "D": "Incorrect. Magic headers are constant ASCII labels ('GCA1') and never contain cryptographic passwords."
+        }
     ),
     Question(
         id="container_q2",
@@ -280,7 +320,12 @@ QUESTIONS = [
         ],
         correct_answer="B",
         explanation="The Magic Header is evaluated in the first step. If the first 4 bytes do not match 'GCA1', the parser raises a FormatError immediately, aborting the workflow before any key processing starts.",
-        difficulty="Advanced"
+        difficulty="Advanced",
+        feedback_by_answer={
+            "A": "Incorrect. If magic bytes fail to match, the system prevents execution entirely, avoiding decryption attempts.",
+            "C": "Incorrect. The tag authenticates data but cannot reconstruct corrupted constants.",
+            "D": "Incorrect. Format rejections block the thread and do not trigger settings swaps."
+        }
     ),
     Question(
         id="integrity_q2",
@@ -295,7 +340,12 @@ QUESTIONS = [
         ],
         correct_answer="C",
         explanation="AEAD guarantees fail-closed security. Any modification or wrong password fails the MAC check. Decryption aborts instantly, releasing zero plaintext bytes to the system.",
-        difficulty="Advanced"
+        difficulty="Advanced",
+        feedback_by_answer={
+            "A": "Incorrect. To maintain safety boundaries, zero plaintext bytes are written or released on tag mismatch.",
+            "B": "Incorrect. Mismatched MAC checks mean incorrect keys or files. Asking for new salts is mathematically useless.",
+            "D": "Incorrect. AEAD boundaries abort execution on failure and do not swap ciphers."
+        }
     )
 ]
 
@@ -304,3 +354,50 @@ def get_lessons():
 
 def get_questions_for_lesson(lesson_id: str):
     return [q for q in QUESTIONS if q.lesson_id == lesson_id]
+
+def validate_curriculum() -> None:
+    """
+    Validation Layer: Ensures curriculum mapping, lesson IDs,
+    question formats, options, and answers match all architectural constraints.
+    Raises ValueError on any parsing anomaly.
+    """
+    lesson_ids = {l.id for l in LESSONS}
+    
+    for l in LESSONS:
+        if not l.id or not l.title or not l.simple_explanation or not l.technical_explanation or not l.security_explanation:
+            raise ValueError(f"Lesson '{l.id}' is missing required educational explanation fields.")
+
+    for q in QUESTIONS:
+        if q.lesson_id not in lesson_ids:
+            raise ValueError(f"Question '{q.id}' references an invalid lesson ID: '{q.lesson_id}'.")
+        
+        if q.question_type not in ["choice", "boolean", "ordering"]:
+            raise ValueError(f"Question '{q.id}' has an invalid type: '{q.question_type}'.")
+
+        if not q.correct_answer:
+            raise ValueError(f"Question '{q.id}' is missing its correct answer.")
+
+        if q.question_type == "boolean":
+            if q.options != ["True", "False"]:
+                raise ValueError(f"Boolean Question '{q.id}' options must be exactly ['True', 'False'].")
+            if q.correct_answer not in ["True", "False"]:
+                raise ValueError(f"Boolean Question '{q.id}' correct answer must be 'True' or 'False'.")
+        
+        elif q.question_type == "ordering":
+            if len(q.options) != 5:
+                raise ValueError(f"Ordering Question '{q.id}' must contain exactly 5 elements.")
+            if q.correct_answer != "0,1,2,3,4":
+                raise ValueError(f"Ordering Question '{q.id}' correct answer must match sequential indexes: '0,1,2,3,4'.")
+        
+        else:
+            # Choice
+            if len(q.options) != 4:
+                raise ValueError(f"Choice Question '{q.id}' must contain exactly 4 options.")
+            if q.correct_answer not in ["A", "B", "C", "D"]:
+                raise ValueError(f"Choice Question '{q.id}' correct answer must match standard uppercase option keys (A-D).")
+            
+            # Every incorrect choice must have custom explanation feedback inside feedback_by_answer dictionary!
+            incorrect_keys = [chr(65 + i) for i in range(4) if chr(65 + i) != q.correct_answer]
+            for key in incorrect_keys:
+                if key not in q.feedback_by_answer:
+                    raise ValueError(f"Choice Question '{q.id}' is missing custom explanation feedback for option '{key}'.")

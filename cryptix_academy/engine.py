@@ -1,11 +1,9 @@
 # cryptix_academy/engine.py
 
-import time
-from cryptix_academy.models import Question, Lesson
-from cryptix_engine.constants import ALGO_AES, ALGO_CHACHA, ALGO_XCHACHA
+from cryptix_academy.models import Question, Lesson, ChallengeResult
+from cryptix_academy.evaluators import get_evaluator
 
-# Challenge session states
-STATE_NOT_STARTED = 0
+# Challenge session states (Simplified as recommended to prevent unused lifecycle states)
 STATE_ACTIVE = 1
 STATE_FAILED_ATTEMPT = 2
 STATE_COMPLETED = 3
@@ -32,21 +30,25 @@ class ChallengeSession:
         else:
             return f"💡 Hint 3 (Expository Solution Clue): {self.question.explanation}"
 
-    def evaluate(self, student_answer: str) -> dict:
+    def evaluate(self, student_answer: str) -> ChallengeResult:
         """
-        Evaluates the student's answer using type-specific validation rules.
+        Evaluates the student's answer using decoupled, type-specific evaluators.
         Prevents resubmission if already completed.
-        Returns a rich status payload.
+        Returns a strongly typed ChallengeResult dataclass.
         """
         if self.state == STATE_COMPLETED:
-            return {
-                "correct": True,
-                "xp_earned": 0,
-                "msg": "Challenge already completed. Re-evaluation blocked."
-            }
+            return ChallengeResult(
+                challenge_id=self.question.id,
+                correct=True,
+                score=0,
+                attempts=self.attempts - 1,
+                hint_level=self.hint_level,
+                feedback="Challenge already completed. Re-evaluation blocked."
+            )
 
-        # Validate answer correctness
-        correct = (student_answer.strip() == self.question.correct_answer.strip())
+        # Retrieve normalized evaluator dynamically from type registry
+        evaluator = get_evaluator(self.question.question_type)
+        correct = evaluator.evaluate(student_answer, self.question.correct_answer)
 
         if correct:
             self.state = STATE_COMPLETED
@@ -65,44 +67,43 @@ class ChallengeSession:
             if self.hint_level > 0:
                 earned_xp = max(5, earned_xp - (self.hint_level * 2))
 
-            return {
-                "correct": True,
-                "xp_earned": earned_xp,
-                "explanation": self.question.explanation
-            }
+            return ChallengeResult(
+                challenge_id=self.question.id,
+                correct=True,
+                score=earned_xp,
+                attempts=self.attempts,
+                hint_level=self.hint_level,
+                explanation=self.question.explanation
+            )
         else:
-            self.state = STATE_FAILED_ATTEMPT
             feedback = self.get_mistake_feedback(student_answer)
+            current_attempts = self.attempts
             self.attempts += 1
-            return {
-                "correct": False,
-                "attempts": self.attempts,
-                "feedback": feedback
-            }
+            return ChallengeResult(
+                challenge_id=self.question.id,
+                correct=False,
+                score=0,
+                attempts=current_attempts,
+                hint_level=self.hint_level,
+                feedback=feedback
+            )
 
     def get_mistake_feedback(self, student_answer: str) -> str:
         """
-        Generates structured, helpful educational mistake feedback.
+        Generates structured, helpful educational mistake feedback from curriculum.
+        Completely decoupled from hardcoded question IDs.
         """
+        normalized_ans = student_answer.strip().upper()
+        
+        # Read from dynamic question feedback mapping
+        feedback = self.question.feedback_by_answer.get(normalized_ans)
+        if feedback:
+            return feedback
+
+        # Fallbacks depending on type
         if self.question.question_type == "boolean":
             return "Not quite. Think about the fundamental security property. Try again or request a Hint!"
-        
-        if self.question.question_type == "ordering":
-            return "The sequential ordering of the cryptographic pipeline is incorrect. Review Level 1 fundamentals and try again!"
-
-        # Choice-specific wrong-option diagnostics
-        if self.question.id == "fundamentals_q1":
-            if student_answer == "A":
-                return "Incorrect. While zip compressing saves space, symmetric cryptography's primary goal is secrecy."
-            elif student_answer == "C":
-                return "Incorrect. Digital signatures and public-key cryptosystems verify sender identity, not simple symmetric blocks."
-            else:
-                return "Incorrect. Anti-malware software blocks malicious payloads. Cryptography only protects data secrecy."
-
-        if self.question.id == "kdf_q1":
-            return "Incorrect. AES demands high-entropy binary bits of exactly 256 bits length. Low-entropy passwords are easily guessed. Try again!"
-
-        if self.question.id == "salt_nonce_q1":
-            return "Incorrect. Nonces do not hide sizes or store password backups. They make identical inputs uniquely scrambled."
-
-        return "That answer is not correct. Review the lesson explanations and try again!"
+        elif self.question.question_type == "ordering":
+            return "The sequential ordering of the cryptographic pipeline is incorrect. Review level guidelines and try again!"
+        else:
+            return "That answer is not correct. Review the lesson explanations and try again!"

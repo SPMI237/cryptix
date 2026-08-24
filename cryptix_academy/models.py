@@ -24,6 +24,7 @@ class Question:
     correct_answer: str = ""
     explanation: str = ""
     difficulty: str = "Beginner"
+    feedback_by_answer: dict = field(default_factory=dict)
 
 @dataclass
 class ChallengeResult:
@@ -31,6 +32,9 @@ class ChallengeResult:
     correct: bool
     score: int
     attempts: int
+    hint_level: int
+    feedback: str = ""
+    explanation: str = ""
 
 @dataclass
 class LearningProgress:

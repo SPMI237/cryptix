@@ -40,6 +40,11 @@ def test_curriculum_and_all_lessons():
             else:
                 assert len(q.options) == 4
 
+def test_curriculum_validation_layer():
+    from cryptix_academy.curriculum import validate_curriculum
+    # Assert that curriculum structures, question types, and option arrays have zero anomalies
+    validate_curriculum()
+
 def test_progress_persistence_and_reset():
     # 1. Reset progress first to start clean
     progress = ProgressStore.reset_progress()

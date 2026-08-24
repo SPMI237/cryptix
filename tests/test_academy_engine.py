@@ -1,7 +1,7 @@
 # tests/test_academy_engine.py
 
 import pytest
-from cryptix_academy.models import Question, Lesson, LearningProgress
+from cryptix_academy.models import Question, Lesson, LearningProgress, ChallengeResult
 from cryptix_academy.engine import ChallengeSession, STATE_ACTIVE, STATE_COMPLETED
 from cryptix_academy.progress import ProgressStore
 from cryptix_academy.curriculum import get_lessons, get_questions_for_lesson
@@ -38,8 +38,9 @@ def test_first_attempt_scoring(sample_data):
 
     # First attempt success
     res = session.evaluate("B")
-    assert res["correct"] is True
-    assert res["xp_earned"] == 10
+    assert isinstance(res, ChallengeResult)
+    assert res.correct is True
+    assert res.score == 10
     assert session.state == STATE_COMPLETED
 
 def test_multi_attempt_scoring(sample_data):
@@ -48,18 +49,23 @@ def test_multi_attempt_scoring(sample_data):
 
     # First attempt wrong
     res1 = session.evaluate("A")
-    assert res1["correct"] is False
-    assert res1["attempts"] == 2
+    assert isinstance(res1, ChallengeResult)
+    assert res1.correct is False
+    assert res1.attempts == 1
+    assert session.attempts == 2
     
     # Second attempt wrong
     res2 = session.evaluate("C")
-    assert res2["correct"] is False
-    assert res2["attempts"] == 3
+    assert isinstance(res2, ChallengeResult)
+    assert res2.correct is False
+    assert res2.attempts == 2
+    assert session.attempts == 3
 
     # Third attempt correct (earns minimum fallback score of 5 XP)
     res3 = session.evaluate("B")
-    assert res3["correct"] is True
-    assert res3["xp_earned"] == 5
+    assert isinstance(res3, ChallengeResult)
+    assert res3.correct is True
+    assert res3.score == 5
     assert session.state == STATE_COMPLETED
 
 def test_hint_penalty_calculations(sample_data):
@@ -84,8 +90,9 @@ def test_hint_penalty_calculations(sample_data):
     # Correct submission with Hint Level 3
     # Base 10 XP - (3 Hint levels * 2 XP penalty) = 4 XP, but capped at minimum baseline of 5 XP!
     res = session.evaluate("B")
-    assert res["correct"] is True
-    assert res["xp_earned"] == 5
+    assert isinstance(res, ChallengeResult)
+    assert res.correct is True
+    assert res.score == 5
 
 def test_completed_challenge_cannot_be_resubmitted(sample_data):
     lesson, question = sample_data
@@ -93,15 +100,17 @@ def test_completed_challenge_cannot_be_resubmitted(sample_data):
 
     # 1. Correct Submission
     res1 = session.evaluate("B")
-    assert res1["correct"] is True
-    assert res1["xp_earned"] == 10
+    assert isinstance(res1, ChallengeResult)
+    assert res1.correct is True
+    assert res1.score == 10
     assert session.state == STATE_COMPLETED
 
     # 2. Resubmission Attempt (rejected)
     res2 = session.evaluate("B")
-    assert res2["correct"] is True
-    assert res2["xp_earned"] == 0
-    assert "already completed" in res2["msg"]
+    assert isinstance(res2, ChallengeResult)
+    assert res2.correct is True
+    assert res2.score == 0
+    assert "already completed" in res2.feedback
 
 def test_progress_does_not_duplicate_challenges():
     progress = ProgressStore.reset_progress()
