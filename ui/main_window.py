@@ -260,7 +260,7 @@ class MainWindow(QMainWindow):
 
         icon_path = os.path.join(base_path, "cryptix.ico")
         self.setWindowIcon(QIcon(icon_path))
-        self.resize(650, 600)
+        self.resize(650, 680)
 
        
 
