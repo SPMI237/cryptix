@@ -603,12 +603,15 @@ class TamperLabDialog(QDialog):
         awarded = apply_challenge_outcome(self.progress, self.session)
         ProgressStore.save_progress(self.progress)
 
-        # Stage 6C: feedback + reward registers at reveal
-        self.audio.emit("prediction_correct" if self.session.prediction_verdict else "prediction_incorrect")
-        self.audio.emit("matching_correct" if all(self.session.matching_results) else "matching_incorrect")
-        self.audio.emit("challenge_completed")
+        # Stage 6C: feedback + reward registers at reveal.
+        # sequence() staggers the sounds - simultaneous QSoundEffects can
+        # kill the audio session on the FFmpeg backend.
+        verdict_event = "prediction_correct" if self.session.prediction_verdict else "prediction_incorrect"
+        match_event = "matching_correct" if all(self.session.matching_results) else "matching_incorrect"
+        reveal_events = [verdict_event, match_event, "challenge_completed"]
         if awarded > 0:
-            self.audio.emit("xp_awarded")
+            reveal_events.append("xp_awarded")
+        self.audio.sequence(*reveal_events)
 
         self.render_reveal(awarded)
 

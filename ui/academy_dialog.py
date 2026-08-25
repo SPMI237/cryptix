@@ -637,9 +637,9 @@ class AcademyDialog(QDialog):
                 }
                 self.progress.xp += xp_reward
 
-                # Stage 6C: reward register - XP granted, challenge completed
-                self.audio.emit("xp_awarded")
-                self.audio.emit("challenge_completed")
+                # Stage 6C: reward register - XP granted, challenge completed.
+                # Sequenced (never simultaneous) for backend safety.
+                self.audio.sequence("xp_awarded", "challenge_completed")
                 
                 # Increment first attempt success counter if answered correctly on first try!
                 if res.attempts == 1:
