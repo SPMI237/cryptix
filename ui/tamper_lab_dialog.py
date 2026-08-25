@@ -16,10 +16,10 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QMessageBox,
     QHeaderView,
-    QTextEdit,
-    QColor
+    QTextEdit
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from cryptix_academy.sandbox import (
     TamperLabSandbox,
     NoOpExperiment,
