@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from cryptix_academy.sandbox import (
     TamperLabSandbox,
+    locate_filename_offset,
     NoOpExperiment,
     CiphertextTamperExperiment,
     MetadataTamperExperiment,
@@ -95,9 +96,13 @@ class TamperLabDialog(QDialog):
         sep.setStyleSheet("background-color: #262F3F; max-height: 1px; border: none;")
         card_layout.addWidget(sep)
 
-        # Sizing details
+        # Sizing details - derived from the real container layout, never hard-coded.
+        # Layout: MAGIC(4) + VERSION(1) + ALGO(1) + SALT(16) + IV(iv_len) + TAG(16)
+        #         + FILENAME_LENGTH(4) + FILENAME + CIPHERTEXT
         size_bytes = len(self.sandbox.original_container)
         iv_len = 24 if self.sandbox.algorithm == 3 else 12
+        filename_offset = locate_filename_offset(bytes(self.sandbox.original_container))
+        ciphertext_size = size_bytes - (filename_offset + 4) - len(self.sandbox.filename.encode("utf-8"))
 
         self.struct_magic = QLabel("• MAGIC HEADER:  GCA1 (4 bytes)")
         self.struct_version = QLabel("• FORMAT VERSION: 01 (1 byte)")
@@ -105,8 +110,8 @@ class TamperLabDialog(QDialog):
         self.struct_salt = QLabel("• KEY SALT:       16 bytes (Random)")
         self.struct_iv = QLabel(f"• NONCE / IV:      {iv_len} bytes (Random)")
         self.struct_tag = QLabel("• AUTH TAG:       16 bytes (Progressive MAC)")
-        self.struct_filename = QLabel(f"• METADATA:       {self.sandbox.filename}")
-        self.struct_cipher = QLabel(f"• CIPHERTEXT:     {size_bytes - 50 - len(self.sandbox.filename)} bytes")
+        self.struct_filename = QLabel(f"• METADATA:       {self.sandbox.filename} ({len(self.sandbox.filename.encode('utf-8'))} bytes)")
+        self.struct_cipher = QLabel(f"• CIPHERTEXT:     {ciphertext_size} bytes")
 
         for lbl in (
             self.struct_magic, self.struct_version, self.struct_algo,
@@ -212,7 +217,7 @@ class TamperLabDialog(QDialog):
             }
         """)
         term_layout.addWidget(self.terminal_area)
-        self.terminal_area.setText("[!] Volatile In-Memory Sandbox Initialized.\n[!] Control Group 'No-Op' active. Ready for simulation execution.")
+        self.terminal_area.setText("[!] Volatile In-Memory Sandbox Initialized.\n[!] Control Group 'No-Op' active — untampered baseline container loaded.\n[!] Ready for experiment execution.")
 
         right_column.addWidget(terminal_card, 2)
 
@@ -300,9 +305,19 @@ class TamperLabDialog(QDialog):
             term_text += f"    └─ Detail: {step.technical_detail}\n"
 
         term_text += f"--------------------------------------------------\n"
+
+        # Identify which defensive layer decided the outcome (Layer 1 parser vs Layer 2 AEAD)
+        if trace.success:
+            layer_line = "Defense Layer Engaged: NONE — container fully authenticated."
+        elif trace.rejection_layer == "STRUCTURAL":
+            layer_line = "Defense Layer Engaged: Layer 1 — Structural Format Validation (parser rejection)."
+        else:
+            layer_line = "Defense Layer Engaged: Layer 2 — Cryptographic AEAD Verification (authentication failure)."
+
         boundary_icon = "✓" if trace.security_preserved else "🚨"
         term_text += f"{boundary_icon}  SECURITY RESULT: {trace.assessment}\n"
-        term_text += f"    └─ Plaintext Release: {'ALLOWED' if trace.released_plaintext else 'BLOCKED (0 bytes written)'}"
+        term_text += f"    └─ {layer_line}\n"
+        term_text += f"    └─ Plaintext Release: {'PERMITTED (authentication passed)' if trace.released_plaintext else 'BLOCKED (0 bytes written)'}"
 
         self.terminal_area.setText(term_text)
 
@@ -328,7 +343,12 @@ class TamperLabDialog(QDialog):
         # 4. Update Educational Assessment Labels
         self.assess_exp.setText(f"Expected Outcome: {self.active_experiment.expected_security}")
         
-        actual_status = "Authentication verified." if trace.success else "Decryption rejected cleanly."
+        if trace.success:
+            actual_status = "Verification passed — authenticated container accepted."
+        elif trace.rejection_layer == "STRUCTURAL":
+            actual_status = "STRUCTURAL REJECTION — refused by the format parser (Layer 1), before any key processing."
+        else:
+            actual_status = "CRYPTOGRAPHIC FAILURE — AEAD authentication failed (Layer 2); decryption aborted."
         self.assess_act.setText(f"Actual Outcome:   {actual_status}")
 
         self.assess_res.setText(f"Assessment:       {trace.assessment}")

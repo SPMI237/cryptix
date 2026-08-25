@@ -36,6 +36,20 @@ class VerificationTrace:
             if self.failed_stage is None:
                 self.failed_stage = stage
 
+    @property
+    def rejection_layer(self) -> str:
+        """
+        Classifies which defensive layer rejected the container:
+        - "NONE": no rejection (full verification passed).
+        - "STRUCTURAL": Layer 1 - Structural Format Validation (rejected by the parser).
+        - "CRYPTOGRAPHIC": Layer 2 - Cryptographic AEAD Verification (authentication failure).
+        """
+        if self.success or self.failed_stage is None:
+            return "NONE"
+        if self.failed_stage == "AUTHENTICATION":
+            return "CRYPTOGRAPHIC"
+        return "STRUCTURAL"
+
 
 # =========================================================
 # EXPERIMENT ABSTRACTION ENGINE
@@ -67,6 +81,10 @@ def locate_filename_offset(container_bytes: bytes) -> int:
 
 
 class TamperExperiment:
+    # Class-level flag: only the control group sets this to True.
+    # Identity must never depend on display-name strings.
+    is_control_group = False
+
     def __init__(self, name: str, description: str, objective: str, expected_security: str):
         self.name = name
         self.description = description
@@ -81,9 +99,11 @@ class TamperExperiment:
 
 
 class NoOpExperiment(TamperExperiment):
+    is_control_group = True
+
     def __init__(self):
         super().__init__(
-            name="No-Op",
+            name="Control Group (No-Op)",
             description="Maintains the container in its pristine, original form.",
             objective="To verify that the unmodified, authenticated container decrypts and validates successfully as our control baseline.",
             expected_security="Cryptix must decrypt and authenticate this pristine container, verifying system integrity."
@@ -348,7 +368,7 @@ class TamperLabSandbox:
                 trace.released_plaintext = False
 
         # 3. EXPECTED VS ACTUAL SECURITY OUTCOME ASSESSMENT
-        is_control_group = (experiment.name == "No-Op")
+        is_control_group = experiment.is_control_group
         if is_control_group:
             if trace.success and trace.released_plaintext:
                 trace.assessment = "✓ SYSTEM INTEGRITY COMPLIANT"

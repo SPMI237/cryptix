@@ -171,6 +171,50 @@ def test_byte_level_before_after_comparisons():
     trunc_bytes, _ = sandbox.run_experiment(exp_trunc)
     # Explicitly assert that the normal sandbox container loses exactly 20 bytes when truncated!
     assert len(sandbox.original_container) - len(trunc_bytes) == 20
-    
+
     diffs_trunc = sandbox.compare_containers(sandbox.original_container, trunc_bytes)
     assert any(d["status"] == "REMOVED" for d in diffs_trunc)
+
+def test_rejection_layer_classification():
+    sandbox = TamperLabSandbox()
+
+    # Control group: no rejection at all
+    _, noop_trace = sandbox.run_experiment(NoOpExperiment())
+    assert noop_trace.success is True
+    assert noop_trace.rejection_layer == "NONE"
+
+    # Structural (Layer 1) rejections: caught by the parser before any key processing
+    _, version_trace = sandbox.run_experiment(VersionTamperExperiment())
+    assert version_trace.success is False
+    assert version_trace.rejection_layer == "STRUCTURAL"
+
+    # Cryptographic (Layer 2) rejections: parser accepts, AEAD authentication fails
+    for exp in (
+        CiphertextTamperExperiment(),
+        MetadataTamperExperiment(),
+        AlgorithmTamperExperiment(),
+        TruncationExperiment(),
+        TagTamperExperiment()
+    ):
+        _, trace = sandbox.run_experiment(exp)
+        assert trace.success is False, f"{exp.name} should have been rejected"
+        assert trace.rejection_layer == "CRYPTOGRAPHIC", f"{exp.name} should be a Layer 2 rejection"
+
+def test_control_group_identity_flag():
+    # Control-group identity must be a class attribute, never a display-name string
+    assert NoOpExperiment().is_control_group is True
+    for exp_cls in (
+        CiphertextTamperExperiment,
+        MetadataTamperExperiment,
+        VersionTamperExperiment,
+        AlgorithmTamperExperiment,
+        TruncationExperiment,
+        TagTamperExperiment
+    ):
+        assert exp_cls().is_control_group is False
+
+    # The control-group assessment path still works end-to-end
+    sandbox = TamperLabSandbox()
+    _, trace = sandbox.run_experiment(NoOpExperiment())
+    assert trace.assessment == "✓ SYSTEM INTEGRITY COMPLIANT"
+    assert trace.security_preserved is True
