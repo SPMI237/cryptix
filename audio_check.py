@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
 
-from audio.playback import SoundService, _QT_AVAILABLE
+from audio.playback import SoundService, _QT_AVAILABLE, LAYER_VERSION
 from audio import sound_manager as sm
 
 
@@ -29,6 +29,7 @@ def main():
     print("=" * 60)
     print("CRYPTIX AUDIO DIAGNOSTIC")
     print("=" * 60)
+    print("Audio layer version     :", LAYER_VERSION)
     print("QtMultimedia importable :", _QT_AVAILABLE)
     print("Themes found            :", sm.list_themes() or "NONE (run: python -m audio.make_sounds)")
 

@@ -14,6 +14,7 @@ from audio.make_sounds import (
     SAMPLE_RATE,
     LOOP_SECONDS,
     SFX_PEAK,
+    LOOP_PEAK,
     generate_theme,
 )
 from audio import sound_manager as sm
@@ -67,7 +68,8 @@ def test_loops_are_valid_and_seamless():
         assert meta == (1, 2, SAMPLE_RATE), f"{loop}: bad format {meta}"
         assert n == int(LOOP_SECONDS * SAMPLE_RATE), f"{loop}: wrong loop length"
         peak = max(abs(v) for v in data)
-        assert 1200 <= peak <= 2600, f"{loop}: ambience level peak={peak}"
+        expected = LOOP_PEAK * 32767
+        assert 0.85 * expected <= peak <= 1.05 * expected, f"{loop}: level peak={peak}"
         # seamlessness tripwire: the wrap-around jump must be inaudible
         jump = abs(data[-1] - data[0])
         assert jump < 3000, f"{loop}: loop boundary jump {jump}"

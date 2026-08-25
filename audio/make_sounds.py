@@ -26,7 +26,8 @@ THEME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "themes", T
 
 SFX_PEAK = 0.90          # every event sound peak-normalized to one consistent level
 LOOP_SECONDS = 12.0      # ambience loop length
-LOOP_PEAK = 0.063        # ~ -24 dBFS ambience level
+LOOP_PEAK = 0.18         # ~ -15 dBFS ambience level (field-adjusted: -24 dBFS
+                         # proved inaudibly quiet next to the 0.90 SFX peak)
 TWO_PI = 2.0 * math.pi
 
 

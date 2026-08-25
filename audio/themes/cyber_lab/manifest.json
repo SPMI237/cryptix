@@ -1,0 +1,31 @@
+{
+  "description": "Cyber Laboratory - Cryptix Academy Theme 1: synthesized terminal/laboratory identity (calm Academy, darker Lab).",
+  "events": [
+    "academy_opened",
+    "challenge_completed",
+    "control_group_success",
+    "cryptographic_rejection",
+    "experiment_selected",
+    "experiment_started",
+    "lab_opened",
+    "matching_correct",
+    "matching_incorrect",
+    "prediction_correct",
+    "prediction_incorrect",
+    "prediction_recorded",
+    "question_correct",
+    "question_incorrect",
+    "structural_rejection",
+    "xp_awarded"
+  ],
+  "generated_by": "python -m audio.make_sounds",
+  "license": "Generated in-house by Cryptix make_sounds.py (pure Python, deterministic). No third-party assets.",
+  "loops": [
+    "academy_loop",
+    "lab_loop"
+  ],
+  "name": "cyber_lab",
+  "register_notes": "mechanical=informative-never-punitive; feedback=reflecting-the-students-result; reward=warm",
+  "sample_rate": 44100,
+  "version": "1.0.0"
+}
