@@ -93,10 +93,14 @@ class ChallengeSession:
         Generates structured, helpful educational mistake feedback from curriculum.
         Completely decoupled from hardcoded question IDs.
         """
-        normalized_ans = student_answer.strip().upper()
+        ans = student_answer.strip().upper()
         
+        # Map indices back to letters if needed
+        index_to_letter = {"0": "A", "1": "B", "2": "C", "3": "D"}
+        letter_ans = index_to_letter.get(ans, ans)
+
         # Read from dynamic question feedback mapping
-        feedback = self.question.feedback_by_answer.get(normalized_ans)
+        feedback = self.question.feedback_by_answer.get(ans) or self.question.feedback_by_answer.get(letter_ans)
         if feedback:
             return feedback
 

@@ -9,8 +9,17 @@ class ChoiceEvaluator(BaseEvaluator):
     def evaluate(self, student_answer: str, correct_answer: str) -> bool:
         """
         Normalizes and evaluates choice question single-character answers.
+        Supports both raw index strings (e.g. "1") and letters (e.g. "B" / "b"),
+        completely decoupling the GUI from the semantic choice letters.
         """
-        return student_answer.strip().upper() == correct_answer.strip().upper()
+        ans = student_answer.strip().upper()
+        corr = correct_answer.strip().upper()
+        
+        # Map uppercase options to standard numeric indices
+        letter_to_index = {"A": "0", "B": "1", "C": "2", "D": "3"}
+        corr_index = letter_to_index.get(corr, "")
+        
+        return ans == corr or (corr_index != "" and ans == corr_index)
 
 
 class BooleanEvaluator(BaseEvaluator):

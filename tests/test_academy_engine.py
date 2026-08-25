@@ -36,12 +36,22 @@ def test_first_attempt_scoring(sample_data):
     assert session.state == STATE_ACTIVE
     assert session.attempts == 1
 
-    # First attempt success
-    res = session.evaluate("B")
+    # First attempt success (using decoupled index string "1" representing B)
+    res = session.evaluate("1")
     assert isinstance(res, ChallengeResult)
     assert res.correct is True
     assert res.score == 10
     assert session.state == STATE_COMPLETED
+
+def test_first_attempt_scoring_with_letter(sample_data):
+    lesson, question = sample_data
+    session = ChallengeSession(question, lesson)
+    
+    # First attempt success (using letter string "B")
+    res = session.evaluate("B")
+    assert isinstance(res, ChallengeResult)
+    assert res.correct is True
+    assert res.score == 10
 
 def test_multi_attempt_scoring(sample_data):
     lesson, question = sample_data

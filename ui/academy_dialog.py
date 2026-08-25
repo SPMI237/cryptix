@@ -443,9 +443,9 @@ class AcademyDialog(QDialog):
                 QMessageBox.warning(self, "Invalid Submission", "Please select an answer choice before submitting.")
                 return
             
-            # Map choice index to letter option
+            # Decoupled index transmission for choices
             if self.active_question.question_type == "choice":
-                student_answer = chr(65 + checked_id) # 0->A, 1->B, etc.
+                student_answer = str(checked_id)
             else:
                 # Boolean
                 student_answer = self.active_question.options[checked_id]
