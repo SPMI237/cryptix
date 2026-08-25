@@ -42,7 +42,7 @@ from cryptix_academy.progress import ProgressStore
 from cryptix_engine.constants import algorithm_name
 
 class TamperLabDialog(QDialog):
-    def __init__(self, parent, progress=None):
+    def __init__(self, parent, progress=None, audio=None):
         super().__init__(parent)
         self.setWindowTitle("Cryptix Laboratory - The Tamper Lab")
         self.setMinimumWidth(940)
@@ -58,6 +58,10 @@ class TamperLabDialog(QDialog):
 
         # Shared Academy progress (passed by the gateway; loaded standalone if absent)
         self.progress = progress if progress is not None else ProgressStore.load_progress()
+
+        # Stage 6C: shared audio service (the Academy owns the session)
+        from audio.playback import SoundService
+        self.audio = audio if audio is not None else SoundService(self)
 
         # Initialize the volatile in-memory sandbox
         self.sandbox = TamperLabSandbox()
@@ -93,6 +97,27 @@ class TamperLabDialog(QDialog):
         # =========================================================
         left_column = QVBoxLayout()
         left_column.setSpacing(12)
+
+        # Stage 6C: shared audio controls (toggles mirror the Academy session)
+        audio_row = QHBoxLayout()
+        self.sfx_toggle = QPushButton("🔊")
+        self.sfx_toggle.setCheckable(True)
+        self.sfx_toggle.setChecked(self.audio.audio_settings()["sfx_enabled"])
+        self.sfx_toggle.setFixedWidth(36)
+        self.sfx_toggle.setToolTip("Sound effects on/off")
+        self.sfx_toggle.clicked.connect(lambda checked: self.audio.update_setting("sfx_enabled", checked))
+        audio_row.addWidget(self.sfx_toggle)
+
+        self.music_toggle = QPushButton("🎵")
+        self.music_toggle.setCheckable(True)
+        self.music_toggle.setChecked(self.audio.audio_settings()["music_enabled"])
+        self.music_toggle.setFixedWidth(36)
+        self.music_toggle.setToolTip("Laboratory ambience on/off")
+        self.music_toggle.clicked.connect(self.toggle_lab_music)
+        audio_row.addWidget(self.music_toggle)
+
+        audio_row.addStretch()
+        left_column.addLayout(audio_row)
 
         # Lab Title
         title_label = QLabel("🧪 THE TAMPER LAB")
@@ -474,8 +499,26 @@ class TamperLabDialog(QDialog):
         right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         main_layout.addWidget(right_scroll, 3)
 
+    # =========================================================
+    # Stage 6C - Audio (mechanical register: the machinery reports)
+    # =========================================================
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_audio_announced", False):
+            self._audio_announced = True
+            self.audio.emit("lab_opened")
+            self.audio.transition_to("lab_loop")
+
+    def toggle_lab_music(self, checked):
+        self.audio.update_setting("music_enabled", checked)
+        if checked:
+            self.audio.transition_to("lab_loop")
+        else:
+            self.audio.stop_ambience()
+
     def select_experiment(self, idx):
         self.active_experiment = self.experiments[idx]
+        self.audio.emit("experiment_selected")
         self.reset_challenge_cycle()
         self.assess_exp.setText(f"Expected Outcome: {self.active_experiment.expected_security}")
         self.assess_act.setText("Actual Outcome:   Not Run")
@@ -535,6 +578,7 @@ class TamperLabDialog(QDialog):
                 rad.setEnabled(False)
             self.predict_btn.setEnabled(False)
             self.run_btn.setEnabled(True)
+            self.audio.emit("prediction_recorded")
             self.terminal_area.append("[✓] Prediction recorded. Experiment unlocked — run it to gather evidence.")
         else:
             self.terminal_area.append("[!] Prediction already recorded for this cycle.")
@@ -552,6 +596,13 @@ class TamperLabDialog(QDialog):
         # Persist outcome into the academy profile (XP awarded exactly once)
         awarded = apply_challenge_outcome(self.progress, self.session)
         ProgressStore.save_progress(self.progress)
+
+        # Stage 6C: feedback + reward registers at reveal
+        self.audio.emit("prediction_correct" if self.session.prediction_verdict else "prediction_incorrect")
+        self.audio.emit("matching_correct" if all(self.session.matching_results) else "matching_incorrect")
+        self.audio.emit("challenge_completed")
+        if awarded > 0:
+            self.audio.emit("xp_awarded")
 
         self.render_reveal(awarded)
 
@@ -589,6 +640,7 @@ class TamperLabDialog(QDialog):
 
     def execute_active_experiment(self):
         # 1. Trigger volatile sandbox run
+        self.audio.emit("experiment_started")
         tampered_bytes, trace = self.sandbox.run_experiment(self.active_experiment)
 
         # 2. Build Terminal Trace Log
@@ -662,3 +714,11 @@ class TamperLabDialog(QDialog):
             self.terminal_area.append(
                 "[✓] Investigation unlocked: examine the trace and hex evidence above, then complete the matching."
             )
+
+        # Stage 6C: mechanical register - the machinery reports which layer answered
+        if self.active_experiment.is_control_group and trace.success:
+            self.audio.emit("control_group_success")
+        elif trace.rejection_layer == "STRUCTURAL":
+            self.audio.emit("structural_rejection")
+        elif trace.rejection_layer == "CRYPTOGRAPHIC":
+            self.audio.emit("cryptographic_rejection")

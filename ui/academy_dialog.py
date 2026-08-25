@@ -13,15 +13,19 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QMessageBox,
     QButtonGroup,
-    QListWidget
+    QListWidget,
+    QComboBox,
+    QSlider
 )
 from PySide6.QtCore import Qt
 from cryptix_academy.progress import ProgressStore
 from cryptix_academy.curriculum import get_lessons, get_questions_for_lesson
 from cryptix_academy.models import LearningProgress
+from audio.playback import SoundService
+from audio.sound_manager import merge_audio_defaults, list_themes
 
 class AcademyDialog(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, audio=None):
         super().__init__(parent)
         self.setWindowTitle("Cryptix Academy - Cybersecurity Laboratory")
         self.setMinimumWidth(700)
@@ -32,6 +36,10 @@ class AcademyDialog(QDialog):
         self.progress = ProgressStore.load_progress()
         self.lessons = get_lessons()
         self.is_review_mode = False
+
+        # Stage 6C: audio session (the Academy owns it; the Lab only transitions)
+        self.audio = audio if audio is not None else SoundService(self)
+        self.audio_settings = self.audio.audio_settings()
 
         self.init_ui()
 
@@ -58,6 +66,52 @@ class AcademyDialog(QDialog):
         self.accuracies_label = QLabel("")
         self.accuracies_label.setStyleSheet("font-size: 11px; color: #A0AEC0; font-weight: bold;")
         self.main_layout.addWidget(self.accuracies_label)
+
+        # Audio Bar (Stage 6C): toggles, theme selector, master volume
+        audio_bar = QHBoxLayout()
+        audio_bar.setSpacing(8)
+
+        self.sfx_toggle = QPushButton("🔊 Effects")
+        self.sfx_toggle.setCheckable(True)
+        self.sfx_toggle.setChecked(self.audio_settings["sfx_enabled"])
+        self.sfx_toggle.setStyleSheet("padding: 4px 10px; font-size: 11px;")
+        self.sfx_toggle.clicked.connect(self.toggle_sfx)
+        audio_bar.addWidget(self.sfx_toggle)
+
+        self.music_toggle = QPushButton("🎵 Music")
+        self.music_toggle.setCheckable(True)
+        self.music_toggle.setChecked(self.audio_settings["music_enabled"])
+        self.music_toggle.setStyleSheet("padding: 4px 10px; font-size: 11px;")
+        self.music_toggle.clicked.connect(self.toggle_music)
+        audio_bar.addWidget(self.music_toggle)
+
+        theme_label = QLabel("Theme:")
+        theme_label.setStyleSheet("color: #A0AEC0; font-size: 11px;")
+        audio_bar.addWidget(theme_label)
+
+        self.theme_selector = QComboBox()
+        for name in list_themes():
+            self.theme_selector.addItem(name)
+        current_theme = self.audio_settings["theme"]
+        idx = self.theme_selector.findText(current_theme)
+        if idx >= 0:
+            self.theme_selector.setCurrentIndex(idx)
+        self.theme_selector.currentTextChanged.connect(self.change_audio_theme)
+        audio_bar.addWidget(self.theme_selector)
+
+        volume_label = QLabel("Volume:")
+        volume_label.setStyleSheet("color: #A0AEC0; font-size: 11px;")
+        audio_bar.addWidget(volume_label)
+
+        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(int(self.audio_settings["master_volume"] * 100))
+        self.volume_slider.setMaximumWidth(120)
+        self.volume_slider.valueChanged.connect(self.change_master_volume)
+        audio_bar.addWidget(self.volume_slider)
+
+        audio_bar.addStretch()
+        self.main_layout.addLayout(audio_bar)
 
         # Separator Line
         divider = QFrame()
@@ -553,6 +607,9 @@ class AcademyDialog(QDialog):
 
         res = self.active_session.evaluate(student_answer)
 
+        # Stage 6C: feedback register - reflecting the student's result
+        self.audio.emit("question_correct" if res.correct else "question_incorrect")
+
         # Record pre-submission level for sequential level-up detection
         old_level = self.progress.level
 
@@ -569,6 +626,10 @@ class AcademyDialog(QDialog):
                     "first_attempt": (res.attempts == 1)
                 }
                 self.progress.xp += xp_reward
+
+                # Stage 6C: reward register - XP granted, challenge completed
+                self.audio.emit("xp_awarded")
+                self.audio.emit("challenge_completed")
                 
                 # Increment first attempt success counter if answered correctly on first try!
                 if res.attempts == 1:
@@ -644,6 +705,39 @@ class AcademyDialog(QDialog):
             )
 
     # =========================================================
+    # Stage 6C - Audio Session (Academy owns the ambience)
+    # =========================================================
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_audio_announced", False):
+            self._audio_announced = True
+            self.audio.emit("academy_opened")
+            self.audio.start_ambience("academy_loop")
+
+    def done(self, result):
+        try:
+            self.audio.stop_ambience()
+        except Exception:
+            pass
+        super().done(result)
+
+    def toggle_sfx(self, checked):
+        self.audio.update_setting("sfx_enabled", checked)
+
+    def toggle_music(self, checked):
+        self.audio.update_setting("music_enabled", checked)
+        if checked:
+            self.audio.start_ambience("academy_loop")
+        else:
+            self.audio.stop_ambience()
+
+    def change_audio_theme(self, name):
+        self.audio.update_setting("theme", name)
+
+    def change_master_volume(self, value):
+        self.audio.update_setting("master_volume", value / 100.0)
+
+    # =========================================================
     # Resets & Navigation Utilities
     # =========================================================
     def update_xp_header(self):
@@ -664,11 +758,13 @@ class AcademyDialog(QDialog):
 
     def open_tamper_lab(self):
         from ui.tamper_lab_dialog import TamperLabDialog
-        dialog = TamperLabDialog(self, self.progress)
+        dialog = TamperLabDialog(self, self.progress, self.audio)
         dialog.exec()
         # Refresh academy stats — the lab may have awarded diagnostic XP (Stage 6B)
         self.update_xp_header()
         self.refresh_dashboard()
+        # Stage 6C: the Lab closed — transition ambience back to the Academy
+        self.audio.transition_to("academy_loop")
 
     def reset_learning_progress(self):
         reply = QMessageBox.question(

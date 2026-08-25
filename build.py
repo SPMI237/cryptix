@@ -1,3 +1,5 @@
+# build.py
+
 import os
 
 os.system(
@@ -5,5 +7,6 @@ os.system(
     "--name CryptixCore "
     "--icon=cryptix.ico "
     "--add-data \"cryptix.ico;.\" "
+    "--add-data \"audio;audio\" "
     "main.py"
 )
