@@ -39,6 +39,20 @@ class VerificationTrace:
 # EXPERIMENT ABSTRACTION ENGINE
 # =========================================================
 
+def locate_filename_offset(container_bytes: bytes) -> int:
+    """
+    Dynamically calculates the filename length prefix offset by parsing the active algorithm ID.
+    Supports AES (12-byte IV), ChaCha (12-byte IV), and XChaCha (24-byte IV).
+    MAGIC (4) + VERSION (1) + ALGO (1) + SALT (16) = 22 bytes offset for IV.
+    """
+    algo_id = container_bytes[5]
+    iv_len = 24 if algo_id == 3 else 12  # 3 is ALGO_XCHACHA
+    # Tag starts right after IV (offset: 22 + iv_len) and is 16 bytes.
+    # Filename length starts right after Tag.
+    # Total offset: 22 + iv_len + 16 = 38 + iv_len
+    return 38 + iv_len
+
+
 class TamperExperiment:
     def __init__(self, name: str, description: str, objective: str, expected_security: str):
         self.name = name
@@ -81,14 +95,14 @@ class MetadataTamperExperiment(TamperExperiment):
     def mutate(self, container_bytes: bytearray) -> bytearray:
         mutated = bytearray(container_bytes)
         
-        # Locate the filename block
-        # Format: MAGIC(4) + VERSION(1) + ALGO(1) + SALT(16) + IV(12) + TAG(16) = 50 bytes header offset
-        # Next 4 bytes represent filename length big-endian
-        filename_length = int.from_bytes(mutated[50:54], "big")
+        # Locate the filename length offset dynamically based on algorithm IV size
+        length_offset = locate_filename_offset(mutated)
+        filename_length = int.from_bytes(mutated[length_offset:length_offset + 4], "big")
         
-        # Alter the first byte of the filename deterministically
+        # Alter the first byte of the filename block deterministically
         if filename_length > 0:
-            mutated[54] ^= 0x01
+            filename_start = length_offset + 4
+            mutated[filename_start] ^= 0x01
             
         return mutated
 
@@ -151,7 +165,7 @@ class TagTamperExperiment(TamperExperiment):
 
     def mutate(self, container_bytes: bytearray) -> bytearray:
         mutated = bytearray(container_bytes)
-        # Tag offset: GCM uses 12-byte nonce, so Tag offset starts at 4 + 1 + 1 + 16 + 12 = 34
+        # GCM uses 12-byte nonce, so Tag offset starts at 4 + 1 + 1 + 16 + 12 = 34
         # Flip the first byte of the tag block deterministically
         mutated[34] ^= 0xFF
         return mutated
@@ -199,7 +213,7 @@ class TamperLabSandbox:
     def run_experiment(self, experiment: TamperExperiment) -> tuple[bytearray, VerificationTrace]:
         """
         Clones original bytes, runs the mutation, feeds the result directly to
-        the active Cryptix verifier, and builds a structured VerificationTrace.
+        the active Cryptix verifier, and builds a structured, granular VerificationTrace.
         Guarantees 100% fail-closed boundary isolation (0 plaintext bytes released).
         """
         tampered_bytes = experiment.mutate(self.original_container)
@@ -207,47 +221,45 @@ class TamperLabSandbox:
 
         stream = io.BytesIO(tampered_bytes)
 
-        # 1. MAGIC & VERSION HEADER PARSING STAGE
+        # 1. THE AUTHORITATIVE PARSER AND INTEGRITY CHECK
         try:
-            magic = stream.read(4)
-            if magic != config.MAGIC_HEADER:
-                trace.add_step("MAGIC", "FAILED", "Magic header GCA1 not recognized.", f"Read value: {magic!r}")
-                return tampered_bytes, trace
-            
-            trace.add_step("MAGIC", "SUCCESS", "Magic header validated successfully.", "Magic: GCA1")
+            # Re-read and parse header data natively using the actual parse_header() routine!
+            header_data = parse_header(stream)
 
-            version_byte = stream.read(1)
-            version = int.from_bytes(version_byte, "big")
-            if version != config.VERSION:
-                trace.add_step("VERSION", "FAILED", f"Unsupported container version: {version}", "Compatible: 01")
-                return tampered_bytes, trace
+            # Record granular progress trace details
+            trace.add_step("MAGIC", "SUCCESS", "Magic GCA1 header validated.", "Value: GCA1")
+            trace.add_step("VERSION", "SUCCESS", "Format Version compatible.", f"Version: {config.VERSION:02d}")
 
-            trace.add_step("VERSION", "SUCCESS", "Version compatibility confirmed.", f"Version: {version:02d}")
+            algorithm = header_data["algorithm"]
+            salt = header_data["salt"]
+            iv = header_data["iv"]
+            tag = header_data["tag"]
+            filename_bytes = header_data["filename_bytes"]
 
-            # 2. ALGO & SALT PARSING
-            algorithm = int.from_bytes(stream.read(1), "big")
-            salt = stream.read(16)
-            
-            iv_len = 24 if algorithm == 3 else 12
-            iv = stream.read(iv_len)
-            tag = stream.read(16)
+            trace.add_step("ALGO", "SUCCESS", f"Algorithm recognized: {algorithm_name(algorithm)}", f"ID: {algorithm:02d}")
+            trace.add_step("SALT", "SUCCESS", f"Salt extracted successfully.", f"Salt length: {len(salt)} bytes")
+            trace.add_step("IV", "SUCCESS", f"Initialization Vector (Nonce) extracted.", f"IV length: {len(iv)} bytes")
+            trace.add_step("TAG", "SUCCESS", f"Authentication Tag extracted.", f"Tag length: {len(tag)} bytes")
+            trace.add_step("FILENAME", "SUCCESS", f"Associated filename extracted: {filename_bytes.decode('utf-8', errors='replace')}", f"Length: {len(filename_bytes)} bytes")
 
-            filename_length = int.from_bytes(stream.read(4), "big")
-            filename_bytes = stream.read(filename_length)
-
-            trace.add_step("PARSER", "SUCCESS", "Container header parsing completed successfully.", 
-                           f"Parsed Algorithm: {algorithm_name(algorithm)}")
-
+        except FormatError as e:
+            trace.add_step("MAGIC", "FAILED", "Magic GCA1 header verification failed.", str(e))
+            return tampered_bytes, trace
+        except VersionMismatchError as e:
+            # Record Magic as successful before checking Version
+            trace.add_step("MAGIC", "SUCCESS", "Magic GCA1 header validated.", "Value: GCA1")
+            trace.add_step("VERSION", "FAILED", "Format Version check failed.", str(e))
+            return tampered_bytes, trace
         except Exception as e:
-            trace.add_step("PARSER", "FAILED", f"Header parsing aborted due to stream corruption.", str(e))
+            trace.add_step("PARSER", "FAILED", "Header parsing failed due to structural corruption.", str(e))
             return tampered_bytes, trace
 
-        # 3. CRYPTOGRAPHIC EVALUATION
+        # 2. CRYPTOGRAPHIC VERIFICATION STAGE
         try:
             # Re-derive key
             key = derive_key(self.password, salt)
 
-            # Re-read ciphertext segment
+            # Re-read remaining ciphertext segment
             ciphertext = stream.read()
 
             from cryptix_engine.aead import verify_stream
