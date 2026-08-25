@@ -108,3 +108,80 @@ def test_tag_tamper_fails():
     assert trace.success is False
     assert trace.released_plaintext is False
     assert trace.failed_stage == "AUTHENTICATION"
+
+def test_tamper_independence():
+    sandbox = TamperLabSandbox()
+    orig_clone = bytearray(sandbox.original_container)
+
+    # 1. Run Experiment A (Ciphertext)
+    exp_a = CiphertextTamperExperiment()
+    bytes_a1, trace_a1 = sandbox.run_experiment(exp_a)
+    assert bytes_a1 != orig_clone
+
+    # 2. Run Experiment B (Tag)
+    exp_b = TagTamperExperiment()
+    bytes_b, trace_b = sandbox.run_experiment(exp_b)
+    assert bytes_b != orig_clone
+    assert bytes_b != bytes_a1
+
+    # 3. Run Experiment A again and assert identical mutant outputs (No cross-contamination!)
+    bytes_a2, trace_a2 = sandbox.run_experiment(exp_a)
+    assert bytes_a2 == bytes_a1
+    assert sandbox.original_container == orig_clone
+
+def test_original_untampered_container_control_group():
+    sandbox = TamperLabSandbox()
+    
+    # Run the Control Group 'No-Op' experiment
+    from cryptix_academy.sandbox import TamperExperiment
+    class NoOpExperiment(TamperExperiment):
+        def __init__(self):
+            super().__init__("No-Op", "None", "Control group", "Succeeds")
+        def mutate(self, container_bytes):
+            return bytearray(container_bytes)
+
+    noop = NoOpExperiment()
+    tampered_bytes, trace = sandbox.run_experiment(noop)
+
+    assert trace.success is True
+    assert trace.released_plaintext is True
+    assert trace.assessment == "✓ SYSTEM INTEGRITY COMPLIANT"
+    assert trace.security_preserved is True
+
+    # Decrypt and verify matching plaintext programmatically inside control group
+    from cryptix_engine.container import parse_header
+    import io
+    stream = io.BytesIO(tampered_bytes)
+    header_data = parse_header(stream)
+    ciphertext = stream.read()
+
+    from cryptix_engine.aead import decrypt_stream
+    out_stream = io.BytesIO()
+    decrypt_stream(
+        io.BytesIO(ciphertext),
+        out_stream,
+        sandbox.key,
+        header_data["algorithm"],
+        header_data["salt"],
+        header_data["iv"],
+        header_data["tag"],
+        header_data["filename_bytes"]
+    )
+    assert out_stream.getvalue() == sandbox.original_payload
+
+def test_byte_level_before_after_comparisons():
+    sandbox = TamperLabSandbox()
+    exp = CiphertextTamperExperiment()
+    mutated_bytes, _ = sandbox.run_experiment(exp)
+
+    # Call comparison helper natively driven by the backend
+    diffs = sandbox.compare_containers(sandbox.original_container, mutated_bytes)
+    assert len(diffs) == 1
+    assert diffs[0]["status"] == "MODIFIED"
+    assert diffs[0]["before"] != diffs[0]["after"]
+
+    # Verify truncation outputs
+    exp_trunc = TruncationExperiment()
+    trunc_bytes, _ = sandbox.run_experiment(exp_trunc)
+    diffs_trunc = sandbox.compare_containers(sandbox.original_container, trunc_bytes)
+    assert any(d["status"] == "REMOVED" for d in diffs_trunc)

@@ -1,15 +1,15 @@
 # cryptix_academy/sandbox.py
 
 import os
-import time
 import io
-from dataclasses import dataclass, field
-from typing import List, Dict
+import secrets
+from dataclasses import dataclass
+from typing import List
 
 import config
 from cryptix_engine.kdf import derive_key, generate_salt
-from cryptix_engine.container import build_header, parse_header, build_aad
-from cryptix_engine.aead import encrypt_stream, verify_stream
+from cryptix_engine.container import parse_header
+from cryptix_engine.aead import encrypt_stream
 from cryptix_engine.exceptions import FormatError, VersionMismatchError, AuthenticationError
 from cryptix_engine.constants import ALGO_AES, algorithm_name
 
@@ -26,6 +26,8 @@ class VerificationTrace:
         self.success = True
         self.failed_stage = None
         self.released_plaintext = False
+        self.assessment = ""
+        self.security_preserved = False
 
     def add_step(self, stage: str, status: str, message: str, technical_detail: str):
         self.steps.append(TraceStep(stage, status, message, technical_detail))
@@ -143,15 +145,16 @@ class TruncationExperiment(TamperExperiment):
     def __init__(self):
         super().__init__(
             name="Container Truncation",
-            description="Slices off the trailing 20 bytes of the container stream.",
+            description="Slices off the trailing portion of the container stream.",
             objective="To verify that truncated, incomplete, or corrupted streams fail progressive integrity checks.",
             expected_security="The streaming verifier must raise an authentication error due to missing stream segments."
         )
 
     def mutate(self, container_bytes: bytearray) -> bytearray:
         mutated = bytearray(container_bytes)
-        # Slices off trailing 20 bytes deterministically
-        return mutated[:-20]
+        # Safely slice off a portion without exceeding bounds on unusually small containers
+        trunc_len = min(20, len(mutated) // 2)
+        return mutated[:-trunc_len] if trunc_len > 0 else mutated
 
 
 class TagTamperExperiment(TamperExperiment):
@@ -179,7 +182,9 @@ class TamperLabSandbox:
     def __init__(self):
         self.original_payload = b"CONFIDENTIAL ACADEMY LAB DATA"
         self.filename = "lab_confidential.txt"
-        self.password = "academy_sandbox_key_2026"
+        
+        # Generate an ephemeral session password (temporary and unique per session)
+        self.password = secrets.token_hex(16)
         self.algorithm = ALGO_AES
 
         # Generate fresh temporary session credentials in memory only
@@ -209,6 +214,37 @@ class TamperLabSandbox:
         )
 
         return bytearray(output_stream.getvalue())
+
+    @staticmethod
+    def compare_containers(original: bytes, tampered: bytes) -> List[dict]:
+        """
+        Compares original and tampered containers byte-by-byte and returns a structured list
+        of offsets and modification differences for the visual Before/After Hex Inspector.
+        """
+        differences = []
+        min_len = min(len(original), len(tampered))
+
+        for idx in range(min_len):
+            orig_byte = original[idx]
+            tamp_byte = tampered[idx]
+            if orig_byte != tamp_byte:
+                differences.append({
+                    "offset": f"0x{idx:04X}",
+                    "before": f"{orig_byte:02X}",
+                    "after": f"{tamp_byte:02X}",
+                    "status": "MODIFIED"
+                })
+
+        # Capture truncation boundary differences
+        if len(tampered) < len(original):
+            differences.append({
+                "offset": f"0x{len(tampered):04X}",
+                "before": f"{original[len(tampered)]:02X}...",
+                "after": "[TRUNCATED]",
+                "status": "REMOVED"
+            })
+
+        return differences
 
     def run_experiment(self, experiment: TamperExperiment) -> tuple[bytearray, VerificationTrace]:
         """
@@ -244,48 +280,64 @@ class TamperLabSandbox:
 
         except FormatError as e:
             trace.add_step("MAGIC", "FAILED", "Magic GCA1 header verification failed.", str(e))
-            return tampered_bytes, trace
         except VersionMismatchError as e:
             # Record Magic as successful before checking Version
             trace.add_step("MAGIC", "SUCCESS", "Magic GCA1 header validated.", "Value: GCA1")
             trace.add_step("VERSION", "FAILED", "Format Version check failed.", str(e))
-            return tampered_bytes, trace
         except Exception as e:
             trace.add_step("PARSER", "FAILED", "Header parsing failed due to structural corruption.", str(e))
-            return tampered_bytes, trace
 
         # 2. CRYPTOGRAPHIC VERIFICATION STAGE
-        try:
-            # Re-derive key
-            key = derive_key(self.password, salt)
+        if trace.success:
+            try:
+                # Re-derive key
+                key = derive_key(self.password, salt)
 
-            # Re-read remaining ciphertext segment
-            ciphertext = stream.read()
+                # Re-read remaining ciphertext segment
+                ciphertext = stream.read()
 
-            from cryptix_engine.aead import verify_stream
-            
-            # Feed tampered stream directly into actual verifier
-            # If MAC verification fails, it raises AuthenticationError cleanly!
-            with io.BytesIO(ciphertext) as input_stream:
-                verify_stream(
-                    input_stream,
-                    key,
-                    algorithm,
-                    salt,
-                    iv,
-                    tag,
-                    filename_bytes,
-                    return_report=False
-                )
+                from cryptix_engine.aead import verify_stream
+                
+                # Feed tampered stream directly into actual verifier
+                # If MAC verification fails, it raises AuthenticationError cleanly!
+                with io.BytesIO(ciphertext) as input_stream:
+                    verify_stream(
+                        input_stream,
+                        key,
+                        algorithm,
+                        salt,
+                        iv,
+                        tag,
+                        filename_bytes,
+                        return_report=False
+                    )
 
-            trace.add_step("AUTHENTICATION", "SUCCESS", "AEAD cryptographic authentication verified.", "Tag: Verified")
-            trace.released_plaintext = True
+                trace.add_step("AUTHENTICATION", "SUCCESS", "AEAD cryptographic authentication verified.", "Tag: Verified")
+                trace.released_plaintext = True
 
-        except (AuthenticationError, FormatError, VersionMismatchError) as e:
-            trace.add_step("AUTHENTICATION", "FAILED", "Cryptographic tag check failed! Modification or wrong key detected.", str(e))
-            trace.released_plaintext = False
-        except Exception as e:
-            trace.add_step("AUTHENTICATION", "FAILED", "Verification pipeline crashed due to structural corruption.", str(e))
-            trace.released_plaintext = False
+            except (AuthenticationError, FormatError, VersionMismatchError) as e:
+                trace.add_step("AUTHENTICATION", "FAILED", "Cryptographic tag check failed! Modification or wrong key detected.", str(e))
+                trace.released_plaintext = False
+            except Exception as e:
+                trace.add_step("AUTHENTICATION", "FAILED", "Verification pipeline crashed due to structural corruption.", str(e))
+                trace.released_plaintext = False
+
+        # 3. EXPECTED VS ACTUAL SECURITY OUTCOME ASSESSMENT
+        is_control_group = (experiment.name == "No-Op")
+        if is_control_group:
+            if trace.success and trace.released_plaintext:
+                trace.assessment = "✓ SYSTEM INTEGRITY COMPLIANT"
+                trace.security_preserved = True
+            else:
+                trace.assessment = "🚨 SYSTEM INTEGRITY BREACHED!"
+                trace.security_preserved = False
+        else:
+            # Tamper experiments must fail and release ZERO plaintext
+            if not trace.success and not trace.released_plaintext:
+                trace.assessment = "✓ SECURITY BOUNDARY PRESERVED"
+                trace.security_preserved = True
+            else:
+                trace.assessment = "🚨 SECURITY BOUNDARY VIOLATION!"
+                trace.security_preserved = False
 
         return tampered_bytes, trace
