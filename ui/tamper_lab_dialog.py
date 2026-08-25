@@ -325,6 +325,7 @@ class TamperLabDialog(QDialog):
             }
         """)
         term_layout.addWidget(self.terminal_area)
+        self.terminal_area.setMinimumHeight(110)  # allows compression on short screens
         self.terminal_area.setText("[!] Volatile In-Memory Sandbox Initialized.\n[!] Control Group 'No-Op' active — untampered baseline container loaded.\n[!] Ready for experiment execution.")
 
         right_column.addWidget(terminal_card, 2)
