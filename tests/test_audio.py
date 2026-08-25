@@ -204,6 +204,11 @@ class RecordingAudio:
     def emit(self, event):
         self.events.append(event)
 
+    def sequence(self, *events, gap_ms=180):
+        # Mirrors SoundService.sequence: order preserved, staggered in time.
+        for event in events:
+            self.events.append(event)
+
     def start_ambience(self, loop_name):
         self.events.append("ambience:" + loop_name)
 
