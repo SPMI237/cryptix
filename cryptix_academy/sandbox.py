@@ -41,6 +41,17 @@ class VerificationTrace:
 # EXPERIMENT ABSTRACTION ENGINE
 # =========================================================
 
+def locate_tag_offset(container_bytes: bytes) -> int:
+    """
+    Dynamically calculates the tag offset by parsing the active algorithm ID.
+    Supports AES (12-byte IV), ChaCha (12-byte IV), and XChaCha (24-byte IV).
+    MAGIC (4) + VERSION (1) + ALGO (1) + SALT (16) = 22 bytes offset for IV.
+    """
+    algo_id = container_bytes[5]
+    iv_len = 24 if algo_id == 3 else 12  # 3 is ALGO_XCHACHA
+    return 22 + iv_len
+
+
 def locate_filename_offset(container_bytes: bytes) -> int:
     """
     Dynamically calculates the filename length prefix offset by parsing the active algorithm ID.
@@ -67,6 +78,19 @@ class TamperExperiment:
         Performs a deterministic mutation over the volatile container bytearray.
         """
         raise NotImplementedError
+
+
+class NoOpExperiment(TamperExperiment):
+    def __init__(self):
+        super().__init__(
+            name="No-Op",
+            description="Maintains the container in its pristine, original form.",
+            objective="To verify that the unmodified, authenticated container decrypts and validates successfully as our control baseline.",
+            expected_security="Cryptix must decrypt and authenticate this pristine container, verifying system integrity."
+        )
+
+    def mutate(self, container_bytes: bytearray) -> bytearray:
+        return bytearray(container_bytes)
 
 
 class CiphertextTamperExperiment(TamperExperiment):
@@ -168,9 +192,10 @@ class TagTamperExperiment(TamperExperiment):
 
     def mutate(self, container_bytes: bytearray) -> bytearray:
         mutated = bytearray(container_bytes)
-        # GCM uses 12-byte nonce, so Tag offset starts at 4 + 1 + 1 + 16 + 12 = 34
+        # Locate the tag offset dynamically based on active algorithm IV length
+        tag_offset = locate_tag_offset(mutated)
         # Flip the first byte of the tag block deterministically
-        mutated[34] ^= 0xFF
+        mutated[tag_offset] ^= 0xFF
         return mutated
 
 

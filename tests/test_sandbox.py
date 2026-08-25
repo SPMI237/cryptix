@@ -3,6 +3,7 @@
 import pytest
 from cryptix_academy.sandbox import (
     TamperLabSandbox,
+    NoOpExperiment,
     CiphertextTamperExperiment,
     MetadataTamperExperiment,
     VersionTamperExperiment,
@@ -34,14 +35,6 @@ def test_valid_sandbox_container_verifies():
     sandbox = TamperLabSandbox()
     
     # Assert that an untampered/original container verifies successfully with 100% success trace!
-    # We test this by creating a mock 'No-Op' experiment that does not alter anything!
-    from cryptix_academy.sandbox import TamperExperiment
-    class NoOpExperiment(TamperExperiment):
-        def __init__(self):
-            super().__init__("No-Op", "Does nothing", "Valid verification", "Succeeds")
-        def mutate(self, container_bytes):
-            return bytearray(container_bytes)
-
     noop = NoOpExperiment()
     _, trace = sandbox.run_experiment(noop)
     
@@ -133,13 +126,6 @@ def test_original_untampered_container_control_group():
     sandbox = TamperLabSandbox()
     
     # Run the Control Group 'No-Op' experiment
-    from cryptix_academy.sandbox import TamperExperiment
-    class NoOpExperiment(TamperExperiment):
-        def __init__(self):
-            super().__init__("No-Op", "None", "Control group", "Succeeds")
-        def mutate(self, container_bytes):
-            return bytearray(container_bytes)
-
     noop = NoOpExperiment()
     tampered_bytes, trace = sandbox.run_experiment(noop)
 
@@ -183,5 +169,8 @@ def test_byte_level_before_after_comparisons():
     # Verify truncation outputs
     exp_trunc = TruncationExperiment()
     trunc_bytes, _ = sandbox.run_experiment(exp_trunc)
+    # Explicitly assert that the normal sandbox container loses exactly 20 bytes when truncated!
+    assert len(sandbox.original_container) - len(trunc_bytes) == 20
+    
     diffs_trunc = sandbox.compare_containers(sandbox.original_container, trunc_bytes)
     assert any(d["status"] == "REMOVED" for d in diffs_trunc)
