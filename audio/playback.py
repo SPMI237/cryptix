@@ -43,7 +43,7 @@ SEQUENCE_GAP_MS = 180  # audible spacing between chained event sounds
 
 # Audio layer build marker - lets anyone verify which version is running:
 #   python -c "from audio.playback import LAYER_VERSION; print(LAYER_VERSION)"
-LAYER_VERSION = "6C.1.3"
+LAYER_VERSION = "6C.1.4"
 
 
 class SoundService:
