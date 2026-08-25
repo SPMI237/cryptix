@@ -31,6 +31,7 @@ class AcademyDialog(QDialog):
         # Load dynamic progress
         self.progress = ProgressStore.load_progress()
         self.lessons = get_lessons()
+        self.is_review_mode = False
 
         self.init_ui()
 
@@ -270,7 +271,10 @@ class AcademyDialog(QDialog):
 
         btn_box.addStretch()
 
-        challenge_btn = QPushButton("📝 Start Interactive Challenge")
+        completed = lesson.id in self.progress.completed_lessons
+        challenge_btn_text = "📖 Review Completed Challenges" if completed else "📝 Start Interactive Challenge"
+        
+        challenge_btn = QPushButton(challenge_btn_text)
         challenge_btn.setStyleSheet("background-color: #00AAFF; color: #FFFFFF; font-weight: bold;")
         challenge_btn.clicked.connect(lambda: self.open_challenge(lesson))
         btn_box.addWidget(challenge_btn)
@@ -288,12 +292,20 @@ class AcademyDialog(QDialog):
             QMessageBox.information(self, "Curriculum Notification", "No challenges created for this level yet.")
             return
 
-        # Load first uncompleted question, or fallback to first question
-        self.active_question = questions[0]
-        for q in questions:
-            if q.id not in self.progress.completed_challenges:
-                self.active_question = q
-                break
+        # Handle review mode trigger
+        self.is_review_mode = lesson.id in self.progress.completed_lessons
+
+        if self.is_review_mode:
+            # Review mode starts at first question, or keeps sequence
+            if not hasattr(self, "active_question") or self.active_question.lesson_id != lesson.id:
+                self.active_question = questions[0]
+        else:
+            # Challenge Mode loads first uncompleted question
+            self.active_question = questions[0]
+            for q in questions:
+                if q.id not in self.progress.completed_challenges:
+                    self.active_question = q
+                    break
 
         # Instantiate Challenge Session Engine
         from cryptix_academy.engine import ChallengeSession
@@ -308,7 +320,8 @@ class AcademyDialog(QDialog):
         self.challenge_layout.setSpacing(14)
 
         # Question header
-        category_label = QLabel(f"🎓 CHALLENGE — {lesson.category}")
+        mode_label = "📖 REVIEW MODE" if self.is_review_mode else f"🎓 CHALLENGE — {lesson.category}"
+        category_label = QLabel(mode_label)
         category_label.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px;")
         self.challenge_layout.addWidget(category_label)
 
@@ -317,11 +330,17 @@ class AcademyDialog(QDialog):
         question_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #E2E8F0;")
         self.challenge_layout.addWidget(question_label)
 
-        # Hint Box (Hidden by default)
+        # Hint Box (Show explanation immediately in Review mode, hidden in challenge mode)
         self.hint_display_label = QLabel("")
         self.hint_display_label.setWordWrap(True)
-        self.hint_display_label.setStyleSheet("color: #00F0FF; background-color: #131822; padding: 10px; border: 1px dashed #262F3F; font-size: 11px;")
-        self.hint_display_label.hide()
+        
+        if self.is_review_mode:
+            self.hint_display_label.setText(f"✓ Solved Explanation: {self.active_question.explanation}")
+            self.hint_display_label.setStyleSheet("color: #00FF66; background-color: #131822; padding: 10px; border: 1px dashed #00FF66; font-size: 11px;")
+            self.hint_display_label.show()
+        else:
+            self.hint_display_label.setStyleSheet("color: #00F0FF; background-color: #131822; padding: 10px; border: 1px dashed #262F3F; font-size: 11px;")
+            self.hint_display_label.hide()
         self.challenge_layout.addWidget(self.hint_display_label)
 
         # Render options based on Question Type
@@ -354,6 +373,27 @@ class AcademyDialog(QDialog):
                 self.options_buttons.append(opt_btn)
                 options_box.addWidget(opt_btn)
 
+                # Pre-highlight correct option in Review Mode
+                if self.is_review_mode:
+                    if self.active_question.question_type == "choice":
+                        is_correct = (chr(65 + idx) == self.active_question.correct_answer)
+                    else:
+                        is_correct = (option == self.active_question.correct_answer)
+
+                    if is_correct:
+                        opt_btn.setChecked(True)
+                        opt_btn.setStyleSheet("""
+                            QPushButton {
+                                text-align: left;
+                                padding: 10px;
+                                background-color: #131822;
+                                border: 2px solid #00FF66;
+                                color: #00FF66;
+                                font-weight: bold;
+                            }
+                        """)
+                    opt_btn.setEnabled(False) # Disable clicks
+
             self.challenge_layout.addLayout(options_box)
 
         elif self.active_question.question_type == "ordering":
@@ -373,19 +413,23 @@ class AcademyDialog(QDialog):
                 item_btn.clicked.connect(lambda checked=False, i=idx: self.select_ordering_item(i))
                 self.options_buttons.append(item_btn)
                 self.order_source_layout.addWidget(item_btn)
+                if self.is_review_mode:
+                    item_btn.setEnabled(False)
 
             self.challenge_layout.addLayout(self.order_source_layout)
 
             # Selection Result display
-            self.ordering_result_label = QLabel("Your Sequence: [ None ]")
+            result_txt = f"Correct Sequence: [ {self.active_question.correct_answer} ]" if self.is_review_mode else "Your Sequence: [ None ]"
+            self.ordering_result_label = QLabel(result_txt)
             self.ordering_result_label.setStyleSheet("color: #00F0FF; font-weight: bold; margin-top: 10px;")
             self.challenge_layout.addWidget(self.ordering_result_label)
 
             # Reset sequence button
-            self.clear_order_btn = QPushButton("Clear Sequence Selection")
-            self.clear_order_btn.setStyleSheet("color: gray; border: 1px dashed #262F3F; padding: 4px;")
-            self.clear_order_btn.clicked.connect(self.clear_ordering_sequence)
-            self.challenge_layout.addWidget(self.clear_order_btn)
+            if not self.is_review_mode:
+                self.clear_order_btn = QPushButton("Clear Sequence Selection")
+                self.clear_order_btn.setStyleSheet("color: gray; border: 1px dashed #262F3F; padding: 4px;")
+                self.clear_order_btn.clicked.connect(self.clear_ordering_sequence)
+                self.challenge_layout.addWidget(self.clear_order_btn)
 
         # Action Buttons
         btn_box = QHBoxLayout()
@@ -393,14 +437,23 @@ class AcademyDialog(QDialog):
         back_to_lesson_btn.clicked.connect(lambda: self.open_lesson(lesson))
         btn_box.addWidget(back_to_lesson_btn)
 
-        self.hint_btn = QPushButton("💡 Request Hint")
-        self.hint_btn.clicked.connect(self.request_hint_action)
-        self.hint_btn.setStyleSheet("color: #00F0FF; border: 1px dashed #262F3F;")
-        btn_box.addWidget(self.hint_btn)
+        if not self.is_review_mode:
+            self.hint_btn = QPushButton("💡 Request Hint")
+            self.hint_btn.clicked.connect(self.request_hint_action)
+            self.hint_btn.setStyleSheet("color: #00F0FF; border: 1px dashed #262F3F;")
+            btn_box.addWidget(self.hint_btn)
 
         btn_box.addStretch()
 
-        self.submit_btn = QPushButton("Submit Answer")
+        # Update button text for Review Mode Navigation
+        if self.is_review_mode:
+            current_idx = questions.index(self.active_question)
+            has_next = (current_idx + 1 < len(questions))
+            submit_text = "Next Question →" if has_next else "Finish Review ✓"
+        else:
+            submit_text = "Submit Answer"
+
+        self.submit_btn = QPushButton(submit_text)
         self.submit_btn.setMinimumWidth(120)
         self.submit_btn.setStyleSheet("background-color: #00FF66; color: #000000; font-weight: bold;")
         self.submit_btn.clicked.connect(lambda: self.submit_answer(lesson))
@@ -418,6 +471,7 @@ class AcademyDialog(QDialog):
         if self.active_session.hint_level >= 3:
             self.hint_btn.setText("💡 All hints revealed")
             self.hint_btn.setEnabled(False)
+
     def select_ordering_item(self, idx):
         if idx not in self.ordered_selection_indices:
             self.ordered_selection_indices.append(idx)
@@ -434,6 +488,21 @@ class AcademyDialog(QDialog):
             btn.setEnabled(True)
 
     def submit_answer(self, lesson):
+        questions = get_questions_for_lesson(lesson.id)
+
+        # Review Mode Navigation Handler
+        if self.is_review_mode:
+            current_idx = questions.index(self.active_question)
+            if current_idx + 1 < len(questions):
+                self.active_question = questions[current_idx + 1]
+                self.open_challenge(lesson)
+            else:
+                # Review complete, clean memory and redirect
+                delattr(self, "active_question")
+                QMessageBox.information(self, "Review Complete", "You have finished reviewing all challenges for this level.")
+                self.go_to_dashboard()
+            return
+
         # 1. Parse Answer based on type
         student_answer = ""
 
@@ -484,7 +553,6 @@ class AcademyDialog(QDialog):
                     self.progress.first_attempt_successes += 1
 
             # Check if all challenges of this lesson are completed to unlock next lesson
-            questions = get_questions_for_lesson(lesson.id)
             lesson_finished = all(q.id in self.progress.completed_challenges for q in questions)
             if lesson_finished and lesson.id not in self.progress.completed_lessons:
                 self.progress.completed_lessons.append(lesson.id)
@@ -504,12 +572,17 @@ class AcademyDialog(QDialog):
             # Instantly update XP label inside active challenge window
             self.update_xp_header()
 
-            # Show Success Dialog
+            # Show Challenge Summary Dialog
+            first_attempt_status = "YES" if res.attempts == 1 else "NO"
             QMessageBox.information(
                 self,
-                "✓ Correct!",
-                f"Excellent work!\n\n+{xp_reward} XP Gained.\n\n"
-                f"Explanation: {res.explanation}"
+                "🎯 Challenge Complete!",
+                f"• Concept: {lesson.category}\n"
+                f"• Attempts Made: {res.attempts}\n"
+                f"• Hints Requested: {res.hint_level} / 3\n"
+                f"• XP Earned: +{xp_reward} XP\n"
+                f"• First-Attempt Success: {first_attempt_status}\n\n"
+                f"Explanation:\n{res.explanation}"
             )
 
             # Check if there are more uncompleted questions in this active lesson
