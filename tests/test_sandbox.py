@@ -47,7 +47,7 @@ def test_valid_sandbox_container_verifies():
     
     assert trace.success is True
     assert trace.released_plaintext is True
-    assert len(trace.steps) == 4  # MAGIC, VERSION, PARSER, AUTHENTICATION
+    assert len(trace.steps) == 8  # MAGIC, VERSION, ALGO, SALT, IV, TAG, FILENAME, AUTHENTICATION
     assert all(step.status == "SUCCESS" for step in trace.steps)
 
 def test_ciphertext_tamper_fails():
