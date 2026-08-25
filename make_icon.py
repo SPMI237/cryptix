@@ -1,3 +1,5 @@
+# make_icon.py
+
 from PIL import Image, ImageDraw
 
 # Create 256x256 image

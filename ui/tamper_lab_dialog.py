@@ -99,12 +99,17 @@ class TamperLabDialog(QDialog):
         left_column.setSpacing(12)
 
         # Stage 6C: shared audio controls (toggles mirror the Academy session)
+        audio_toggle_style = """
+            QPushButton { padding: 3px; font-size: 13px; }
+            QPushButton:checked { background-color: #00F0FF; }
+        """
         audio_row = QHBoxLayout()
         self.sfx_toggle = QPushButton("🔊")
         self.sfx_toggle.setCheckable(True)
         self.sfx_toggle.setChecked(self.audio.audio_settings()["sfx_enabled"])
         self.sfx_toggle.setFixedWidth(36)
         self.sfx_toggle.setToolTip("Sound effects on/off")
+        self.sfx_toggle.setStyleSheet(audio_toggle_style)
         self.sfx_toggle.clicked.connect(lambda checked: self.audio.update_setting("sfx_enabled", checked))
         audio_row.addWidget(self.sfx_toggle)
 
@@ -113,6 +118,7 @@ class TamperLabDialog(QDialog):
         self.music_toggle.setChecked(self.audio.audio_settings()["music_enabled"])
         self.music_toggle.setFixedWidth(36)
         self.music_toggle.setToolTip("Laboratory ambience on/off")
+        self.music_toggle.setStyleSheet(audio_toggle_style)
         self.music_toggle.clicked.connect(self.toggle_lab_music)
         audio_row.addWidget(self.music_toggle)
 

@@ -307,3 +307,24 @@ def test_academy_emission_and_audio_controls():
     assert academy.theme_selector.count() >= 1
 
     academy.accept()  # closing the session must not raise
+
+
+def test_academy_missing_themes_is_actionable(monkeypatch, tmp_path):
+    """When audio/themes/ is missing, the app must SAY so - never fail silently."""
+    app = _qt_app()
+    from PySide6.QtWidgets import QWidget
+    import ui.academy_dialog as academy_module
+
+    monkeypatch.setattr(academy_module, "list_themes", lambda *a, **k: [])
+    monkeypatch.setattr(academy_module.QMessageBox, "warning", lambda *a, **k: None)
+
+    stub = RecordingAudio()
+    parent = QWidget()
+    academy = academy_module.AcademyDialog(parent, audio=stub)
+    academy.show()  # triggers the one-time missing-themes warning (stubbed)
+    app.processEvents()
+
+    assert "no audio themes" in academy.theme_selector.currentText().lower()
+    # selecting the hint entry must not corrupt settings
+    academy.change_audio_theme(academy.theme_selector.currentText())
+    academy.accept()

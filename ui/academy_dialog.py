@@ -74,14 +74,20 @@ class AcademyDialog(QDialog):
         self.sfx_toggle = QPushButton("🔊 Effects")
         self.sfx_toggle.setCheckable(True)
         self.sfx_toggle.setChecked(self.audio_settings["sfx_enabled"])
-        self.sfx_toggle.setStyleSheet("padding: 4px 10px; font-size: 11px;")
+        self.sfx_toggle.setStyleSheet("""
+            QPushButton { padding: 4px 10px; font-size: 11px; }
+            QPushButton:checked { background-color: #00F0FF; color: #000000; font-weight: bold; }
+        """)
         self.sfx_toggle.clicked.connect(self.toggle_sfx)
         audio_bar.addWidget(self.sfx_toggle)
 
         self.music_toggle = QPushButton("🎵 Music")
         self.music_toggle.setCheckable(True)
         self.music_toggle.setChecked(self.audio_settings["music_enabled"])
-        self.music_toggle.setStyleSheet("padding: 4px 10px; font-size: 11px;")
+        self.music_toggle.setStyleSheet("""
+            QPushButton { padding: 4px 10px; font-size: 11px; }
+            QPushButton:checked { background-color: #00F0FF; color: #000000; font-weight: bold; }
+        """)
         self.music_toggle.clicked.connect(self.toggle_music)
         audio_bar.addWidget(self.music_toggle)
 
@@ -90,12 +96,16 @@ class AcademyDialog(QDialog):
         audio_bar.addWidget(theme_label)
 
         self.theme_selector = QComboBox()
-        for name in list_themes():
-            self.theme_selector.addItem(name)
-        current_theme = self.audio_settings["theme"]
-        idx = self.theme_selector.findText(current_theme)
-        if idx >= 0:
-            self.theme_selector.setCurrentIndex(idx)
+        available_themes = list_themes()
+        if available_themes:
+            for name in available_themes:
+                self.theme_selector.addItem(name)
+            idx = self.theme_selector.findText(self.audio_settings["theme"])
+            if idx >= 0:
+                self.theme_selector.setCurrentIndex(idx)
+        else:
+            # Actionable empty state instead of a silent blank dropdown
+            self.theme_selector.addItem("⚠ No audio themes - run: python -m audio.make_sounds")
         self.theme_selector.currentTextChanged.connect(self.change_audio_theme)
         audio_bar.addWidget(self.theme_selector)
 
@@ -713,6 +723,16 @@ class AcademyDialog(QDialog):
             self._audio_announced = True
             self.audio.emit("academy_opened")
             self.audio.start_ambience("academy_loop")
+            if not list_themes():
+                QMessageBox.warning(
+                    self,
+                    "Audio Themes Missing",
+                    "No audio theme packs were found under audio/themes/.\n\n"
+                    "Cryptix ships with a built-in theme generator.\n"
+                    "Run this command from your project root:\n\n"
+                    "    python -m audio.make_sounds\n\n"
+                    "Then restart Cryptix Academy."
+                )
 
     def done(self, result):
         try:
@@ -732,7 +752,8 @@ class AcademyDialog(QDialog):
             self.audio.stop_ambience()
 
     def change_audio_theme(self, name):
-        self.audio.update_setting("theme", name)
+        if name in list_themes():  # ignore the "no themes" hint entry
+            self.audio.update_setting("theme", name)
 
     def change_master_volume(self, value):
         self.audio.update_setting("master_volume", value / 100.0)
