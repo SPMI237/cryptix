@@ -9,6 +9,10 @@ from .sandbox import (
     CiphertextTamperExperiment, MetadataTamperExperiment, VersionTamperExperiment,
     AlgorithmTamperExperiment, TruncationExperiment, TagTamperExperiment
 )
+from .tamper_pedagogy import (
+    MatchingItem, TamperChallenge, TamperChallengeSession, TAMPER_CHALLENGES,
+    get_challenge_for_experiment, validate_pedagogy, apply_challenge_outcome
+)
 
 __all__ = [
     "Lesson",
@@ -33,4 +37,11 @@ __all__ = [
     "AlgorithmTamperExperiment",
     "TruncationExperiment",
     "TagTamperExperiment",
+    "MatchingItem",
+    "TamperChallenge",
+    "TamperChallengeSession",
+    "TAMPER_CHALLENGES",
+    "get_challenge_for_experiment",
+    "validate_pedagogy",
+    "apply_challenge_outcome",
 ]

@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QMessageBox,
     QHeaderView,
-    QTextEdit
+    QTextEdit,
+    QComboBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -31,15 +32,24 @@ from cryptix_academy.sandbox import (
     TruncationExperiment,
     TagTamperExperiment
 )
+from cryptix_academy.tamper_pedagogy import (
+    TamperChallengeSession,
+    get_challenge_for_experiment,
+    apply_challenge_outcome
+)
+from cryptix_academy.progress import ProgressStore
 from cryptix_engine.constants import algorithm_name
 
 class TamperLabDialog(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, progress=None):
         super().__init__(parent)
         self.setWindowTitle("Cryptix Laboratory - The Tamper Lab")
         self.setMinimumWidth(820)
-        self.setMinimumHeight(680)
+        self.setMinimumHeight(760)
         self.setStyleSheet(parent.styleSheet()) # Inherit dark theme styling
+
+        # Shared Academy progress (passed by the gateway; loaded standalone if absent)
+        self.progress = progress if progress is not None else ProgressStore.load_progress()
 
         # Initialize the volatile in-memory sandbox
         self.sandbox = TamperLabSandbox()
@@ -56,7 +66,14 @@ class TamperLabDialog(QDialog):
         ]
         self.active_experiment = self.experiments[0]
 
+        # Stage 6B scientific method session:
+        # Prediction -> Experiment -> Investigation -> Matching -> Reveal
+        self.session = TamperChallengeSession(
+            get_challenge_for_experiment(self.active_experiment.name)
+        )
+
         self.init_ui()
+        self.reset_challenge_cycle()
 
     def init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -167,6 +184,80 @@ class TamperLabDialog(QDialog):
 
         left_column.addWidget(selector_card)
 
+        # --- 3. SCIENTIFIC METHOD: PREDICTION CARD (Stage 6B) ---
+        prediction_card = QFrame()
+        prediction_card.setStyleSheet("border: 1px solid #262F3F; background-color: #0F131C; border-radius: 4px;")
+        predict_layout = QVBoxLayout(prediction_card)
+        predict_layout.setSpacing(6)
+        predict_layout.setContentsMargins(12, 12, 12, 12)
+
+        predict_title = QLabel("🔮 PREDICTION — STATE YOUR HYPOTHESIS")
+        predict_title.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px; border: none;")
+        predict_layout.addWidget(predict_title)
+
+        flow_label = QLabel("Predict → Experiment → Investigate → Match → Reveal")
+        flow_label.setStyleSheet("color: #A0AEC0; font-size: 10px; font-style: italic; border: none;")
+        predict_layout.addWidget(flow_label)
+
+        sep3 = QFrame()
+        sep3.setFrameShape(QFrame.Shape.HLine)
+        sep3.setStyleSheet("background-color: #262F3F; max-height: 1px; border: none;")
+        predict_layout.addWidget(sep3)
+
+        self.predict_question = QLabel("")
+        self.predict_question.setWordWrap(True)
+        self.predict_question.setStyleSheet("color: #E2E8F0; font-size: 11px; border: none;")
+        predict_layout.addWidget(self.predict_question)
+
+        self.predict_group = QButtonGroup(self)
+        self.predict_radios = []
+        for idx in range(4):
+            rad = QRadioButton()
+            rad.setStyleSheet("""
+                QRadioButton {
+                    color: #A0AEC0;
+                    font-size: 11px;
+                    border: none;
+                }
+                QRadioButton::indicator {
+                    width: 12px;
+                    height: 12px;
+                }
+                QRadioButton::indicator:checked {
+                    background-color: #00F0FF;
+                }
+                QRadioButton:disabled {
+                    color: #6B7A90;
+                }
+            """)
+            rad.toggled.connect(self._on_prediction_radio_toggled)
+            self.predict_group.addButton(rad, idx)
+            predict_layout.addWidget(rad)
+            self.predict_radios.append(rad)
+
+        self.predict_btn = QPushButton("🔮 RECORD PREDICTION")
+        self.predict_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1A2332;
+                color: #00F0FF;
+                font-weight: bold;
+                border: 1px solid #00F0FF;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #00F0FF;
+                color: #000000;
+            }
+            QPushButton:disabled {
+                color: #6B7A90;
+                border-color: #262F3F;
+            }
+        """)
+        self.predict_btn.clicked.connect(self.record_prediction_action)
+        predict_layout.addWidget(self.predict_btn)
+
+        left_column.addWidget(prediction_card)
+
         # Action Buttons
         self.run_btn = QPushButton("💥 RUN TAMPER EXPERIMENT")
         self.run_btn.setStyleSheet("""
@@ -183,6 +274,7 @@ class TamperLabDialog(QDialog):
             }
         """)
         self.run_btn.clicked.connect(self.execute_active_experiment)
+        self.run_btn.setEnabled(False)  # Stage 6B: locked until a prediction is recorded
         left_column.addWidget(self.run_btn)
 
         main_layout.addLayout(left_column, 2)
@@ -279,14 +371,193 @@ class TamperLabDialog(QDialog):
 
         right_column.addWidget(assessment_card, 1)
 
+        # --- 4. SCIENTIFIC METHOD: MATCHING & REVEAL CARD (Stage 6B) ---
+        matching_card = QFrame()
+        matching_card.setStyleSheet("border: 1px solid #262F3F; background-color: #0F131C; border-radius: 4px;")
+        match_layout = QVBoxLayout(matching_card)
+        match_layout.setContentsMargins(12, 12, 12, 12)
+        match_layout.setSpacing(6)
+
+        match_title = QLabel("🔗 MATCHING — INTERPRET THE EVIDENCE")
+        match_title.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px; border: none;")
+        match_layout.addWidget(match_title)
+
+        sep5 = QFrame()
+        sep5.setFrameShape(QFrame.Shape.HLine)
+        sep5.setStyleSheet("background-color: #262F3F; max-height: 1px; border: none;")
+        match_layout.addWidget(sep5)
+
+        self.match_rows = []  # list of (prompt_label, combo)
+        for _ in range(3):
+            row = QHBoxLayout()
+            prompt_lbl = QLabel("")
+            prompt_lbl.setStyleSheet("color: #E2E8F0; font-family: Consolas, monospace; font-size: 11px; border: none;")
+            combo = QComboBox()
+            combo.setStyleSheet("""
+                QComboBox {
+                    background-color: #131822;
+                    color: #E2E8F0;
+                    border: 1px solid #262F3F;
+                    padding: 4px;
+                    font-family: Consolas, monospace;
+                    font-size: 11px;
+                }
+                QComboBox:disabled {
+                    color: #6B7A90;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #131822;
+                    color: #E2E8F0;
+                    selection-background-color: #00F0FF;
+                    selection-color: #000000;
+                }
+            """)
+            row.addWidget(prompt_lbl, 1)
+            row.addWidget(combo, 2)
+            match_layout.addLayout(row)
+            self.match_rows.append((prompt_lbl, combo))
+
+        self.match_submit_btn = QPushButton("🔗 SUBMIT MATCHING")
+        self.match_submit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1A2332;
+                color: #00F0FF;
+                font-weight: bold;
+                border: 1px solid #00F0FF;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #00F0FF;
+                color: #000000;
+            }
+            QPushButton:disabled {
+                color: #6B7A90;
+                border-color: #262F3F;
+            }
+        """)
+        self.match_submit_btn.setEnabled(False)
+        self.match_submit_btn.clicked.connect(self.submit_matching_action)
+        match_layout.addWidget(self.match_submit_btn)
+
+        self.reveal_label = QLabel("")
+        self.reveal_label.setWordWrap(True)
+        self.reveal_label.setStyleSheet("color: #E2E8F0; font-family: Consolas, monospace; font-size: 11px; border: none;")
+        match_layout.addWidget(self.reveal_label)
+
+        right_column.addWidget(matching_card, 2)
+
         main_layout.addLayout(right_column, 3)
 
     def select_experiment(self, idx):
         self.active_experiment = self.experiments[idx]
+        self.reset_challenge_cycle()
         self.assess_exp.setText(f"Expected Outcome: {self.active_experiment.expected_security}")
         self.assess_act.setText("Actual Outcome:   Not Run")
         self.assess_res.setText("Assessment:       WAITING")
         self.assess_res.setStyleSheet("color: #E2E8F0; font-family: Consolas, monospace; font-size: 11px; border: none;")
+
+    # =========================================================
+    # Stage 6B - Scientific Method Cycle
+    # (UI renders state; the pedagogy engine owns correctness & reveal timing)
+    # =========================================================
+    def reset_challenge_cycle(self):
+        """Binds the pedagogy session to the active experiment and re-locks the cycle."""
+        challenge = get_challenge_for_experiment(self.active_experiment.name)
+        self.session.reset(challenge)
+
+        # Prediction card refresh
+        self.predict_question.setText(challenge.prediction_question)
+        self.predict_group.setExclusive(False)
+        for idx, rad in enumerate(self.predict_radios):
+            rad.setText(challenge.prediction_options[idx])
+            rad.setChecked(False)
+            rad.setEnabled(True)
+        self.predict_group.setExclusive(True)
+        self.predict_btn.setEnabled(True)
+
+        # Run locked until a new prediction exists
+        self.run_btn.setEnabled(False)
+
+        # Matching card refresh (locked until the experiment ran)
+        for (prompt_lbl, combo), item in zip(self.match_rows, challenge.matching_items):
+            prompt_lbl.setText(item.prompt)
+            combo.clear()
+            combo.addItems(item.options)
+            combo.setCurrentIndex(0)
+            combo.setEnabled(False)
+        self.match_submit_btn.setEnabled(False)
+        self.reveal_label.setText("")
+
+        self.terminal_area.setText(
+            "[!] Volatile In-Memory Sandbox Initialized.\n"
+            f"[!] Experiment '{self.active_experiment.name}' loaded. State your prediction first.\n"
+            "[!] Cycle: Predict → Experiment → Investigate → Match → Reveal."
+        )
+
+    def _on_prediction_radio_toggled(self):
+        pass  # selection highlight only; correctness is judged exclusively by the pedagogy engine
+
+    def record_prediction_action(self):
+        idx = self.predict_group.checkedId()
+        if idx == -1:
+            self.terminal_area.append("[!] Select a prediction option first — the laboratory requires a hypothesis.")
+            return
+        if self.session.record_prediction(idx):
+            for rad in self.predict_radios:
+                rad.setEnabled(False)
+            self.predict_btn.setEnabled(False)
+            self.run_btn.setEnabled(True)
+            self.terminal_area.append("[✓] Prediction recorded. Experiment unlocked — run it to gather evidence.")
+        else:
+            self.terminal_area.append("[!] Prediction already recorded for this cycle.")
+
+    def submit_matching_action(self):
+        selections = [combo.currentIndex() for _, combo in self.match_rows]
+        if not self.session.submit_matching(selections):
+            return  # invalid submission (engine rejected); cycle state unchanged
+
+        # Lock matching inputs — the reveal is one-shot per cycle
+        for _, combo in self.match_rows:
+            combo.setEnabled(False)
+        self.match_submit_btn.setEnabled(False)
+
+        # Persist outcome into the academy profile (XP awarded exactly once)
+        awarded = apply_challenge_outcome(self.progress, self.session)
+        ProgressStore.save_progress(self.progress)
+
+        self.render_reveal(awarded)
+
+    def render_reveal(self, awarded):
+        challenge = self.session.challenge
+
+        # Prediction verdict (with per-option feedback for wrong hypotheses)
+        if self.session.prediction_verdict:
+            pred_html = "🔮 Prediction: <b>CORRECT (+10 XP)</b>"
+        else:
+            feedback = challenge.prediction_feedback.get(str(self.session.predicted_index), "")
+            pred_html = f"🔮 Prediction: <b>INCORRECT</b> — {feedback}"
+
+        # Matching results with the correct answers
+        match_lines = []
+        for item, result in zip(challenge.matching_items, self.session.matching_results):
+            icon = "✓" if result else "❌"
+            match_lines.append(f"{icon} {item.prompt}: {item.options[item.correct]}")
+        match_html = "<br>".join(match_lines)
+
+        repeat_note = " (already completed — no repeat XP)" if awarded == 0 else ""
+        xp_html = f"⭐ XP Earned: <b>+{awarded}</b>{repeat_note}"
+
+        self.reveal_label.setText(
+            f"{pred_html}<br>{match_html}<br><br>"
+            f"📖 <b>Explanation:</b> {self.session.explanation}<br><br>{xp_html}"
+        )
+
+        score = sum(self.session.matching_results)
+        self.terminal_area.append("--------------------------------------------------")
+        self.terminal_area.append(
+            f"📖 REVEAL — Prediction: {'CORRECT' if self.session.prediction_verdict else 'INCORRECT'} | "
+            f"Matching: {score}/3 | XP: +{awarded}{repeat_note}"
+        )
 
     def execute_active_experiment(self):
         # 1. Trigger volatile sandbox run
@@ -354,3 +625,12 @@ class TamperLabDialog(QDialog):
         self.assess_res.setText(f"Assessment:       {trace.assessment}")
         res_color = "#00FF66" if trace.security_preserved else "#FF3B3B"
         self.assess_res.setStyleSheet(f"color: {res_color}; font-family: Consolas, monospace; font-size: 11px; border: none; font-weight: bold;")
+
+        # Stage 6B: advance the scientific method cycle (Prediction -> Experiment done)
+        if self.session.record_experiment_run():
+            for _, combo in self.match_rows:
+                combo.setEnabled(True)
+            self.match_submit_btn.setEnabled(True)
+            self.terminal_area.append(
+                "[✓] Investigation unlocked: examine the trace and hex evidence above, then complete the matching."
+            )

@@ -196,7 +196,7 @@ class AcademyDialog(QDialog):
             btn.clicked.connect(lambda checked=False, l=lesson: self.open_lesson(l))
             self.level_list_layout.addWidget(btn)
 
-        # If the current level is completed, it unlocks the next level
+            # If the current level is completed, it unlocks the next level
             if completed:
                 unlocked = True
 
@@ -664,8 +664,11 @@ class AcademyDialog(QDialog):
 
     def open_tamper_lab(self):
         from ui.tamper_lab_dialog import TamperLabDialog
-        dialog = TamperLabDialog(self)
+        dialog = TamperLabDialog(self, self.progress)
         dialog.exec()
+        # Refresh academy stats — the lab may have awarded diagnostic XP (Stage 6B)
+        self.update_xp_header()
+        self.refresh_dashboard()
 
     def reset_learning_progress(self):
         reply = QMessageBox.question(
