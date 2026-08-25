@@ -63,7 +63,7 @@ LESSONS = [
         technical_explanation="The container layout uses big-endian 4-byte length prefixing for filenames. Dynamic IV-header offsets ensure compatibility between 12-byte (AES/ChaCha) and 24-byte (XChaCha) nonces.",
         security_explanation="The password and derived encryption key are not stored in the Cryptix container. Only public, random, and authenticated cryptographic helper headers are stored."
     ),
-        Lesson(
+    Lesson(
         id="integrity_tampering",
         title="Level 7: Integrity & Tampering",
         category="Attack Vector Diagnostics",
