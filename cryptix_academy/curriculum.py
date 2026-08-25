@@ -63,15 +63,15 @@ LESSONS = [
         technical_explanation="The container layout uses big-endian 4-byte length prefixing for filenames. Dynamic IV-header offsets ensure compatibility between 12-byte (AES/ChaCha) and 24-byte (XChaCha) nonces.",
         security_explanation="The password and derived encryption key are not stored in the Cryptix container. Only public, random, and authenticated cryptographic helper headers are stored."
     ),
-    Lesson(
+        Lesson(
         id="integrity_tampering",
         title="Level 7: Integrity & Tampering",
         category="Attack Vector Diagnostics",
         difficulty="Advanced",
-        content="An attacker with access to your encrypted container can attempt various active manipulations: flipping bits in ciphertext, altering version codes, or swapping tags. Cryptix operates on a strict fail-closed boundary: any integrity check mismatch causes decryption to halt instantly. Releasing unverified partially decrypted plaintext can leak cryptographic secrets.",
-        simple_explanation="If someone tampers with your file, Cryptix doesn't try to repair it. It shuts down decryption instantly to protect you from reading corrupted or leaked data.",
-        technical_explanation="Releasing unauthenticated plaintext before tag verification exposes the system to active chosen-ciphertext attacks. A strict fail-closed boundary prevents this.",
-        security_explanation="Fail-closed behavior guarantees that an adversary can never gain insight into the plaintext or the key material through progressive, fuzzed alterations."
+        content="An attacker with access to your container can attempt active manipulations. Cryptix defends itself through two distinct layers: Layer 1 (Structural Format Validation) evaluates magic bytes and version compatibilities immediately during parsing. Layer 2 (Cryptographic AEAD Verification) progressively evaluates ciphertext and AAD bytes against the authentication tag, halting decryption cleanly on mismatch.",
+        simple_explanation="Cryptix has a two-layer defense. First, it checks if the file structure is correct (Layer 1). Second, it cryptographically verifies that nobody changed the password, name, or content (Layer 2).",
+        technical_explanation="Layer 1 parses static header boundaries prior to key processing. Layer 2 executes the AEAD verify sequence, enforcing a strict fail-closed boundary on authentication mismatch.",
+        security_explanation="Failing closed prevents adversaries from using modified files to perform active chosen-ciphertext side-channel attacks or memory leakage diagnostics."
     )
 ]
 
