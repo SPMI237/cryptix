@@ -196,9 +196,31 @@ class AcademyDialog(QDialog):
             btn.clicked.connect(lambda checked=False, l=lesson: self.open_lesson(l))
             self.level_list_layout.addWidget(btn)
 
-            # If the current level is completed, it unlocks the next level
+        # If the current level is completed, it unlocks the next level
             if completed:
                 unlocked = True
+
+        # If all 7 lessons are completed, unlock the advanced Tamper Lab gateway!
+        all_completed = all(l.id in self.progress.completed_lessons for l in self.lessons)
+        if all_completed:
+            lab_btn = QPushButton("🧪 Open Advanced Tamper Lab")
+            lab_btn.setMinimumHeight(55)
+            lab_btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left; 
+                    padding: 12px; 
+                    font-weight: bold;
+                    color: #D300FF;  /* Purple highlight */
+                    background-color: #131822;
+                    border: 2px dashed #D300FF;
+                }
+                QPushButton:hover {
+                    background-color: #0F131C;
+                    border: 2px solid #D300FF;
+                }
+            """)
+            lab_btn.clicked.connect(self.open_tamper_lab)
+            self.level_list_layout.addWidget(lab_btn)
 
         self.level_list_layout.addStretch()
         self.update_xp_header()
@@ -639,6 +661,11 @@ class AcademyDialog(QDialog):
     def go_to_dashboard(self):
         self.refresh_dashboard()
         self.stacked_widget.setCurrentIndex(0)
+
+    def open_tamper_lab(self):
+        from ui.tamper_lab_dialog import TamperLabDialog
+        dialog = TamperLabDialog(self)
+        dialog.exec()
 
     def reset_learning_progress(self):
         reply = QMessageBox.question(
