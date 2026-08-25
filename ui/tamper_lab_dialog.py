@@ -1,6 +1,7 @@
 # ui/tamper_lab_dialog.py
 
 import os
+import textwrap
 from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
     QComboBox
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QGuiApplication
 from cryptix_academy.sandbox import (
     TamperLabSandbox,
     locate_filename_offset,
@@ -44,8 +45,15 @@ class TamperLabDialog(QDialog):
     def __init__(self, parent, progress=None):
         super().__init__(parent)
         self.setWindowTitle("Cryptix Laboratory - The Tamper Lab")
-        self.setMinimumWidth(820)
-        self.setMinimumHeight(760)
+        self.setMinimumWidth(940)
+        self.setMinimumHeight(560)
+
+        # Open at a size that always fits the available screen
+        screen_geom = QGuiApplication.primaryScreen().availableGeometry()
+        self.resize(
+            min(1120, screen_geom.width() - 100),
+            min(880, screen_geom.height() - 100)
+        )
         self.setStyleSheet(parent.styleSheet()) # Inherit dark theme styling
 
         # Shared Academy progress (passed by the gateway; loaded standalone if absent)
@@ -277,7 +285,15 @@ class TamperLabDialog(QDialog):
         self.run_btn.setEnabled(False)  # Stage 6B: locked until a prediction is recorded
         left_column.addWidget(self.run_btn)
 
-        main_layout.addLayout(left_column, 2)
+        # Left column scrolls on short screens so Record Prediction / Run stay reachable
+        left_container = QWidget()
+        left_container.setLayout(left_column)
+        left_scroll = QScrollArea()
+        left_scroll.setWidget(left_container)
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        main_layout.addWidget(left_scroll, 2)
 
         # =========================================================
         # RIGHT COLUMN (Terminal, Hex Inspector & Socratic results)
@@ -346,6 +362,7 @@ class TamperLabDialog(QDialog):
         """)
         self.hex_table.setRowCount(0)
         hex_layout.addWidget(self.hex_table)
+        self.hex_table.setMinimumHeight(90)  # allows compression on short screens
 
         right_column.addWidget(hex_card, 2)
 
@@ -446,7 +463,15 @@ class TamperLabDialog(QDialog):
 
         right_column.addWidget(matching_card, 2)
 
-        main_layout.addLayout(right_column, 3)
+        # Right column scrolls on short screens (e.g. once the reveal text appears)
+        right_container = QWidget()
+        right_container.setLayout(right_column)
+        right_scroll = QScrollArea()
+        right_scroll.setWidget(right_container)
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        main_layout.addWidget(right_scroll, 3)
 
     def select_experiment(self, idx):
         self.active_experiment = self.experiments[idx]
@@ -469,7 +494,9 @@ class TamperLabDialog(QDialog):
         self.predict_question.setText(challenge.prediction_question)
         self.predict_group.setExclusive(False)
         for idx, rad in enumerate(self.predict_radios):
-            rad.setText(challenge.prediction_options[idx])
+            # QRadioButton cannot word-wrap; wrap manually so long options
+            # stay fully readable inside the narrow left column
+            rad.setText(textwrap.fill(challenge.prediction_options[idx], width=44))
             rad.setChecked(False)
             rad.setEnabled(True)
         self.predict_group.setExclusive(True)
