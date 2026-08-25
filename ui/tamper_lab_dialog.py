@@ -15,7 +15,9 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
-    QHeaderView
+    QHeaderView,
+    QTextEdit,
+    QColor
 )
 from PySide6.QtCore import Qt
 from cryptix_academy.sandbox import (
