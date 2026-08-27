@@ -18,6 +18,7 @@ from audio.make_sounds import (
     generate_theme,
 )
 from audio import sound_manager as sm
+from audio import playback as pb
 
 
 # ---------------------------------------------------------
@@ -314,6 +315,83 @@ def test_academy_emission_and_audio_controls():
     assert academy.theme_selector.count() >= 1
 
     academy.accept()  # closing the session must not raise
+
+
+# ---------------------------------------------------------
+# 4. Software mixer (Stage 6C.2 engine core) - pure, headless
+# ---------------------------------------------------------
+
+from audio.mixer import Mixer, Voice, load_wav_samples
+
+
+def test_wav_loader_returns_pcm_samples():
+    samples = load_wav_samples(os.path.join(THEME_DIR, "xp_awarded.wav"))
+    assert len(samples) > 1000
+    assert all(isinstance(s, int) for s in samples[:50])
+    assert max(abs(s) for s in samples) > 10000  # audible content
+
+
+def test_mixer_silent_when_idle():
+    m = Mixer()
+    assert m.idle
+    assert m.tick(100) == [0] * 100
+
+
+def test_mixer_event_plays_and_finishes():
+    m = Mixer()
+    m.add(Voice([1000] * 500, volume=1.0, name="ev"))
+    assert not m.idle
+    assert all(s == 1000 for s in m.tick(200))
+    m.tick(200)
+    m.tick(100)
+    last = m.tick(200)  # voice exhausted (500 < 600 consumed) -> dropped
+    assert m.idle
+    assert all(s == 0 for s in last[100:])  # beyond the voice: silence
+
+
+def test_mixer_loop_wraps_forever_sample_accurately():
+    m = Mixer()
+    m.add(Voice([100, -100], volume=1.0, loop=True, name="amb"))
+    total = 0
+    for _ in range(2000):
+        chunk = m.tick(7)  # odd step forces wrap across the boundary
+        total += sum(abs(s) for s in chunk)
+        assert not m.idle
+    assert total == 2000 * 7 * 100  # every sample present, nothing lost at wraps
+
+
+def test_mixer_sums_voices_and_clamps():
+    m = Mixer()
+    m.add(Voice([20000] * 100, volume=1.0, name="a"))
+    m.add(Voice([20000] * 100, volume=1.0, name="b"))
+    assert m.tick(50)[0] == 32767  # 40000 clamps to int16 max
+
+    m2 = Mixer()
+    m2.add(Voice([20000] * 100, volume=0.5, name="half"))
+    assert m2.tick(1)[0] == 10000  # per-voice volume scaling
+
+
+def test_mixer_remove_by_name_stops_only_that_voice():
+    m = Mixer()
+    m.add(Voice([500] * 100, loop=True, name="ambience"))
+    m.add(Voice([10] * 50, name="ev"))
+    m.remove("ambience")
+    assert not m.has("ambience")
+    assert m.has("ev")
+    assert all(s == 10 for s in m.tick(10))
+
+
+def test_service_headless_api_never_raises():
+    svc = pb.SoundService()
+    svc.emit("xp_awarded")
+    svc.sequence("prediction_correct", "challenge_completed")
+    svc.start_ambience("academy_loop")
+    svc.transition_to("lab_loop")
+    svc.stop_ambience()
+    svc.update_setting("music_enabled", True)
+    svc.update_setting("master_volume", 0.5)
+    svc.update_setting("theme", "cyber_lab")
+    assert svc.audio_settings()["theme"] == "cyber_lab"
 
 
 def test_academy_missing_themes_is_actionable(monkeypatch, tmp_path):

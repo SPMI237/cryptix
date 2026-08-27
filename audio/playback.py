@@ -1,6 +1,6 @@
 # audio/playback.py
 #
-# Stage 6C - the thin Qt playback shell.
+# Stage 6C.2 - the Qt playback shell over QAudioSink + our own mixer.
 # Contains NO semantic logic: every decision (which file, which volume,
 # whether audio is enabled) comes from audio/sound_manager.py.
 #
@@ -10,53 +10,54 @@
 #   - the UI only ever calls emit(event) / sequence(...) / ambience controls
 #     / update_setting
 #
-# Engine choice (Windows/FFmpeg hard lessons, 6C.1):
-#   - ALL audio - effects AND ambience loops - plays through QSoundEffect.
-#     QSoundEffect is the engine proven reliable on the field machine: no
-#     FFmpeg demuxer involvement, no media-session crashes, no silent
-#     QPropertyAnimation failures.
-#   - QMediaPlayer is NOT used anywhere. On Windows, Qt's FFmpeg backend
-#     logged the WAVs, then produced silence and hard process exits.
-#   - Ambience loops via QSoundEffect.Loops.Infinite (documented, stable),
-#     volume fades via plain QTimer steps calling setVolume() directly.
-#   - Related reveal sounds are staggered via sequence(): never stack
-#     simultaneous effects.
+# Engine choice (Windows/FFmpeg hard lessons, 6C.1 -> 6C.2):
+#   - QSoundEffect: one-shots worked, but infinite loops were SILENT and the
+#     effect session died after extended use. Retired.
+#   - QMediaPlayer/FFmpeg: silent loops + hard process exits. Retired.
+#   - QAudioSink: raw PCM streaming straight to the OS audio endpoint
+#     (WASAPI on Windows). No media session, no demuxer, no loop API to
+#     trust. We decode our own WAVs (stdlib), mix them ourselves
+#     (audio/mixer.py), and loop by wrapping our own playhead. The only
+#     remaining dependency is the raw audio device itself.
 
 import os
+import time
 
 from audio.sound_manager import resolve_emission, resolve_ambience, update_audio_settings
 
 try:
-    from PySide6.QtCore import QUrl, QTimer
-    from PySide6.QtMultimedia import QSoundEffect
+    from PySide6.QtCore import QTimer
+    from PySide6.QtMultimedia import QAudioSink, QAudioFormat
     _QT_AVAILABLE = True
-    # QSoundEffect.Loops.Infinite (Qt 6 style); fall back to the flat name.
-    try:
-        _INFINITE = QSoundEffect.Loops.Infinite
-    except AttributeError:
-        _INFINITE = QSoundEffect.Infinite
 except Exception:  # missing multimedia backend must never break the app
     _QT_AVAILABLE = False
-    _INFINITE = -1
 
-SEQUENCE_GAP_MS = 180  # audible spacing between chained event sounds
+from audio.mixer import Mixer, Voice, load_wav_samples, samples_to_bytes
 
 # Audio layer build marker - lets anyone verify which version is running:
 #   python -c "from audio.playback import LAYER_VERSION; print(LAYER_VERSION)"
-LAYER_VERSION = "6C.1.4"
+LAYER_VERSION = "6C.2.0"
+
+SAMPLE_RATE = 44100
+TICK_MS = 50        # pump cadence
+CHUNK_MS = 100      # samples generated per mixer tick
+BUFFER_MS = 300     # target queued audio ahead of the device
+
+AMBIENCE_VOICE = "ambience"
 
 
 class SoundService:
-    """Owns the QSoundEffect pool (SFX + the active ambience loop).
+    """One QAudioSink (push mode) fed by the software Mixer.
     Parent it to the Academy dialog; the Academy owns the audio session."""
 
     def __init__(self, parent=None):
         self._parent = parent
-        self._effects = {}
-        self._loop_effect = None   # the one active ambience QSoundEffect
-        self._loop_name = None
-        self._fade_timer = None
-        self._fade_gen = 0         # ignores stale fade callbacks
+        self._mixer = Mixer()
+        self._sink = None
+        self._stream = None       # QIODevice from sink.start() (push mode)
+        self._timer = None
+        self._idle_since = None
+        self._ambience_loop = None
 
         self._settings = {}
         try:
@@ -85,21 +86,20 @@ class SoundService:
             save_settings(settings)
             self._settings = settings
 
-            if key == "theme":
-                self._effects.clear()  # reload lazily on next emit
-                # Restart the ambience on the new theme if one is playing
-                if self._loop_name is not None:
-                    resolved = resolve_ambience(self._loop_name, self._settings)
-                    if resolved is not None:
-                        self._fade_gen += 1
-                        self._play_loop(resolved[0], resolved[1], self._fade_gen, fade_ms=350)
-                    else:
-                        self._stop_loop_now()
+            if key == "theme" and self._mixer.has(AMBIENCE_VOICE):
+                # swap the running ambience onto the new theme
+                resolved = resolve_ambience(self._ambience_loop, self._settings)
+                if resolved is not None:
+                    self._start_loop_voice(resolved[0], resolved[1])
+                else:
+                    self._mixer.remove(AMBIENCE_VOICE)
 
-            if key == "master_volume" and self._loop_name is not None:
-                resolved = resolve_ambience(self._loop_name, self._settings)
-                if resolved and self._loop_effect is not None:
-                    self._loop_effect.setVolume(resolved[1])
+            if key == "master_volume" and self._mixer.has(AMBIENCE_VOICE):
+                resolved = resolve_ambience(self._ambience_loop, self._settings)
+                if resolved is not None:
+                    for v in self._mixer.voices:
+                        if v.name == AMBIENCE_VOICE:
+                            v.volume = resolved[1]
         except Exception:
             pass
 
@@ -108,199 +108,136 @@ class SoundService:
     # ---------------------------------------------------------
 
     def emit(self, event):
-        if not _QT_AVAILABLE:
-            return
         try:
             resolved = resolve_emission(event, self._settings)
             if resolved is None:
                 return
             path, volume = resolved
-
-            effect = self._effects.get(path)
-            # Recreate effects that fell into the error state (dead session
-            # recovery) instead of silently keeping them around forever.
-            if effect is not None and effect.status() == QSoundEffect.Status.Error:
-                self._effects.pop(path, None)
-                effect = None
-            if effect is None:
-                effect = QSoundEffect(self._parent)
-                effect.setSource(QUrl.fromLocalFile(path))
-                self._effects[path] = effect
-
-            effect.setVolume(volume)
-            effect.play()
+            samples = load_wav_samples(path)
+            self._mixer.add(Voice(samples, volume=volume, name=event))
+            self._start_engine()
         except Exception:
             pass  # invariant: audio failure must never surface in the UI
 
-    def sequence(self, *events, gap_ms=SEQUENCE_GAP_MS):
-        """Plays related events one after another - never stacks
-        simultaneous effects (concurrent bursts killed the session before)."""
-        for i, event in enumerate(events):
-            if _QT_AVAILABLE:
-                try:
-                    QTimer.singleShot(i * gap_ms, lambda e=event: self.emit(e))
-                except Exception:
-                    pass
-            else:
-                self.emit(event)  # headless/testing fallback: immediate order
+    def sequence(self, *events, gap_ms=180):
+        """Plays related events one after another (staggered, never stacked)."""
+        try:
+            delay = 0
+            for event in events:
+                if _QT_AVAILABLE:
+                    QTimer.singleShot(delay, lambda e=event: self.emit(e))
+                else:
+                    self.emit(event)  # headless/testing fallback
+                delay += gap_ms
+        except Exception:
+            pass
 
     # ---------------------------------------------------------
     # Ambience (Academy owns the session; the Lab only transitions)
     # ---------------------------------------------------------
 
     def start_ambience(self, loop_name):
-        if not _QT_AVAILABLE:
-            return
         try:
-            self._fade_gen += 1
-            gen = self._fade_gen
-
             resolved = resolve_ambience(loop_name, self._settings)
             if resolved is None:
-                self._fade_out_loop(300, gen)
+                self._mixer.remove(AMBIENCE_VOICE)
                 return
-            path, volume = resolved
-            self._play_loop(path, volume, gen, fade_ms=700)
+            self._start_loop_voice(resolved[0], resolved[1])
         except Exception:
-            self._stop_loop_now()
+            pass
 
-    def stop_ambience(self, fade_ms=400):
-        if not _QT_AVAILABLE:
-            return
+    def stop_ambience(self):
         try:
-            self._fade_gen += 1
-            gen = self._fade_gen
-            self._loop_name = None
-            if self._loop_effect is None:
-                return
-            self._fade_out_loop(fade_ms, gen)
+            self._mixer.remove(AMBIENCE_VOICE)
         except Exception:
-            self._stop_loop_now()
+            pass
 
     def transition_to(self, loop_name):
-        """Fade out whatever plays, then fade in the new loop. If music is
-        disabled, resolve_ambience returns None and this simply fades out."""
+        """Switches the ambience loop. If music is disabled, resolves to
+        None and simply stops the current loop."""
+        self.start_ambience(loop_name)
+
+    # ---------------------------------------------------------
+    # Engine: QAudioSink push mode + timer-driven mixer pump
+    # ---------------------------------------------------------
+
+    def _start_loop_voice(self, path, volume):
+        samples = load_wav_samples(path)
+        self._mixer.remove(AMBIENCE_VOICE)  # replace any running loop
+        self._mixer.add(Voice(samples, volume=volume, loop=True, name=AMBIENCE_VOICE))
+        self._ambience_loop = self._loop_name_from_path(path)
+        self._start_engine()
+
+    def _start_engine(self):
         if not _QT_AVAILABLE:
             return
         try:
-            self._fade_gen += 1
-            gen = self._fade_gen
-
-            resolved = resolve_ambience(loop_name, self._settings)
-            if resolved is None:
-                self._loop_name = None
-                self._fade_out_loop(300, gen)
-                return
-
-            path, volume = resolved
-
-            def begin():
-                if gen != self._fade_gen:
-                    return
-                self._play_loop(path, volume, gen, fade_ms=700)
-
-            if self._loop_effect is not None and self._loop_name is not None:
-                self._fade_out_loop(300, gen, done=begin)
-            else:
-                begin()
+            if self._sink is None:
+                fmt = QAudioFormat()
+                fmt.setSampleRate(SAMPLE_RATE)
+                fmt.setChannelCount(1)
+                fmt.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+                self._sink = QAudioSink(fmt, self._parent)
+                self._sink.setVolume(1.0)  # per-voice volumes already include master
+            if self._stream is None:
+                self._stream = self._sink.start()  # push mode QIODevice
+            if self._timer is None:
+                self._timer = QTimer(self._parent)
+                self._timer.setInterval(TICK_MS)
+                self._timer.timeout.connect(self._pump)
+            if not self._timer.isActive():
+                self._timer.start()
         except Exception:
-            self._stop_loop_now()
+            self._teardown_engine()
 
-    # ---------------------------------------------------------
-    # internals
-    # ---------------------------------------------------------
-
-    def _play_loop(self, path, volume, gen, fade_ms):
-        self._dispose_loop_effect()
-
+    def _pump(self):
+        """Generates and queues audio. Self-healing: any engine error
+        tears the sink down so the next emit() rebuilds it cleanly."""
         try:
-            effect = QSoundEffect(self._parent)
-            effect.setSource(QUrl.fromLocalFile(path))
-            effect.setLoops(_INFINITE)
-            self._loop_effect = effect
-            self._loop_name = self._loop_name_from_path(path)
-            effect.setVolume(0.0 if fade_ms > 0 else volume)
-            effect.play()
-            if fade_ms > 0:
-                self._ramp_effect_volume(effect, volume, fade_ms, gen)
+            if self._mixer.idle:
+                # Let the queued tail finish before releasing the device,
+                # otherwise the last ~300 ms of a sound gets clipped.
+                now = time.monotonic()
+                if self._idle_since is None:
+                    self._idle_since = now
+                    return
+                if now - self._idle_since < (BUFFER_MS / 1000.0 + 0.1):
+                    return
+                self._teardown_engine()
+                return
+            self._idle_since = None
+
+            if self._stream is None or self._sink is None:
+                self._teardown_engine()
+                self._start_engine()
+                if self._stream is None:
+                    return
+
+            chunk_frames = SAMPLE_RATE * CHUNK_MS // 1000
+            target_bytes = SAMPLE_RATE * 2 * BUFFER_MS // 1000
+            queued = self._sink.bufferSize() - self._sink.bytesFree()  # bytes
+
+            while queued < target_bytes:
+                mixed = self._mixer.tick(chunk_frames)
+                written = self._stream.write(samples_to_bytes(mixed))
+                if written <= 0:
+                    raise OSError("audio stream write failed")
+                queued += written
         except Exception:
-            self._stop_loop_now()
+            self._teardown_engine()
 
-    def _fade_out_loop(self, fade_ms, gen, done=None):
-        effect = self._loop_effect
-        if effect is None:
-            self._loop_name = None
-            if done is not None:
-                done()
-            return
-        self._ramp_effect_volume(
-            effect, 0.0, fade_ms, gen,
-            done=lambda: self._finalize_stop(gen, done),
-        )
-
-    def _finalize_stop(self, gen, done=None):
-        if gen != self._fade_gen:
-            if done is not None:
-                done()
-            return
-        self._stop_loop_now()
-        if done is not None:
-            done()
-
-    def _stop_loop_now(self):
-        self._dispose_loop_effect()
-        self._loop_name = None
-
-    def _dispose_loop_effect(self):
-        effect = self._loop_effect
-        self._loop_effect = None
-        if effect is not None:
-            try:
-                effect.stop()
-                effect.setSource(QUrl())
-            except Exception:
-                pass
+    def _teardown_engine(self):
+        try:
+            if self._timer is not None:
+                self._timer.stop()
+            if self._sink is not None:
+                self._sink.stop()
+        except Exception:
+            pass
+        self._stream = None
+        self._sink = None
 
     @staticmethod
     def _loop_name_from_path(path):
         base = os.path.basename(path) if path else ""
         return base[:-4] if base.endswith(".wav") else base
-
-    def _ramp_effect_volume(self, effect, target, duration_ms, gen, done=None):
-        """Plain QTimer-stepped volume ramp: direct setVolume() calls only -
-        no QPropertyAnimation (unreliable on some multimedia builds)."""
-        if self._fade_timer is not None:
-            self._fade_timer.stop()
-            self._fade_timer = None
-
-        steps = max(1, int(duration_ms) // 40)
-        interval = max(1, int(duration_ms) / steps)
-        state = {"i": 0}
-
-        timer = QTimer(self._parent)
-        timer.setInterval(int(interval))
-
-        def tick():
-            if gen is not None and gen != self._fade_gen:
-                timer.stop()
-                self._fade_timer = None
-                return
-            state["i"] += 1
-            frac = min(1.0, state["i"] / steps)
-            try:
-                start = state.get("start")
-                if start is None:
-                    start = state["start"] = float(effect.volume())
-                value = start + (target - start) * frac
-                effect.setVolume(max(0.0, min(1.0, value)))
-            except Exception:
-                pass
-            if state["i"] >= steps:
-                timer.stop()
-                self._fade_timer = None
-                if done is not None and (gen is None or gen == self._fade_gen):
-                    done()
-
-        timer.timeout.connect(tick)
-        timer.start()
-        self._fade_timer = timer
