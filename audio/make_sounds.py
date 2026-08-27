@@ -190,28 +190,91 @@ def _mix(*tracks):
     return total
 
 
+def _ramp_env(n, attack_s, release_s):
+    """Raised-cosine attack/release envelope: exactly zero at both edges,
+    so pad segments concatenate click-free and the loop wraps seamlessly."""
+    env = [0.0] * n
+    a = max(1, int(attack_s * SAMPLE_RATE))
+    r = max(1, int(release_s * SAMPLE_RATE))
+    for i in range(n):
+        g = 1.0
+        if i < a:
+            g = 0.5 * (1.0 - math.cos(math.pi * i / a))
+        elif i > n - r:
+            j = n - i
+            g = 0.5 * (1.0 - math.cos(math.pi * j / r))
+        env[i] = g
+    return env
+
+
+def _pad_note(freq, amp, start_s, dur_s, attack_s=0.45, release_s=0.45):
+    """One pad voice over a segment, zero at the segment edges."""
+    n = int(dur_s * SAMPLE_RATE)
+    sine = _sine(n, freq, amp)
+    env = _ramp_env(n, attack_s, release_s)
+    return [s * e for s, e in zip(sine, env)], start_s
+
+
 def _render_academy_loop():
-    """Calm ambient pad - quantized A-major-ish drone, slow breathing LFOs."""
-    mix = _mix(
-        _pad(110.00, 0.85, lfo_cycles=1, lfo_phase=0.0),
-        _pad(164.81, 0.55, lfo_cycles=2, lfo_phase=1.1),
-        _pad(220.00, 0.45, lfo_cycles=1, lfo_phase=2.3),
-        _pad(329.63, 0.16, lfo_cycles=2, lfo_phase=0.7),
-        _noise_floor(amp=0.10, cutoff_hz=400, seed=2026),
-    )
-    return _normalize(mix, LOOP_PEAK)
+    """Actual music: C - Am - F - G progression, warm pads, bell arpeggio.
+    All content in laptop-audible ranges (130-800 Hz); zero at loop edges."""
+    buf = [0.0] * int(LOOP_SECONDS * SAMPLE_RATE)
+    seg = LOOP_SECONDS / 4.0
+
+    chords = [
+        ([261.63, 329.63, 392.00], 130.81),   # C   (pads, sub root)
+        ([220.00, 261.63, 329.63], 110.00),   # Am
+        ([174.61, 220.00, 261.63], 87.31),    # F
+        ([196.00, 246.94, 293.66], 98.00),    # G
+    ]
+
+    for ci, (pads, sub) in enumerate(chords):
+        t0 = ci * seg
+        for f in pads:
+            voice, at = _pad_note(f, 0.55, t0, seg)
+            buf = _place(buf, voice, at)
+        sub_voice, at = _pad_note(sub, 0.50, t0, seg, attack_s=0.6, release_s=0.6)
+        buf = _place(buf, sub_voice, at)
+
+        # Gentle bell arpeggio: root, third, fifth (one octave up), octave root
+        bells = [pads[0] * 2, pads[1] * 2, pads[2] * 2, pads[0] * 4]
+        onsets = [0.50, 1.25, 2.00, 2.40]
+        for f, dt in zip(bells, onsets):
+            buf = _place(buf, tone(f, 0.5, decay=6.0, amp=0.30), t0 + dt)
+
+    buf = buf[:int(LOOP_SECONDS * SAMPLE_RATE)]  # exact loop-length guarantee
+    return _normalize(buf, LOOP_PEAK)
 
 
 def _render_lab_loop():
-    """Darker technological drone - low minor pulse, deeper noise, slow throb."""
-    mix = _mix(
-        _pad(55.00, 0.95, lfo_cycles=3, lfo_phase=0.0),
-        _pad(82.41, 0.55, lfo_cycles=1, lfo_phase=0.9),
-        _pad(110.00, 0.40, lfo_cycles=2, lfo_phase=2.0),
-        _pad(130.81, 0.20, lfo_cycles=3, lfo_phase=1.6),
-        _noise_floor(amp=0.16, cutoff_hz=300, seed=2027),
-    )
-    return _normalize(mix, LOOP_PEAK)
+    """Darker music: Dm - Bb - Gm - A progression, lower bells, sparser rhythm.
+    Still laptop-audible (110-440 Hz); zero at loop edges."""
+    buf = [0.0] * int(LOOP_SECONDS * SAMPLE_RATE)
+    seg = LOOP_SECONDS / 4.0
+
+    chords = [
+        ([146.83, 174.61, 220.00], 73.42),    # Dm
+        ([116.54, 146.83, 174.61], 58.27),    # Bb
+        ([98.00, 116.54, 146.83], 49.00),     # Gm
+        ([110.00, 138.59, 164.81], 55.00),    # A  (harmonic-minor tension)
+    ]
+
+    for ci, (pads, sub) in enumerate(chords):
+        t0 = ci * seg
+        for f in pads:
+            voice, at = _pad_note(f, 0.60, t0, seg, attack_s=0.6, release_s=0.6)
+            buf = _place(buf, voice, at)
+        sub_voice, at = _pad_note(sub, 0.45, t0, seg, attack_s=0.8, release_s=0.8)
+        buf = _place(buf, sub_voice, at)
+
+        # Sparser, lower bells: root, fifth, octave root
+        bells = [pads[0] * 2, pads[2] * 2, pads[0] * 4]
+        onsets = [0.75, 1.75, 2.40]
+        for f, dt in zip(bells, onsets):
+            buf = _place(buf, tone(f, 0.5, decay=5.0, amp=0.32), t0 + dt)
+
+    buf = buf[:int(LOOP_SECONDS * SAMPLE_RATE)]  # exact loop-length guarantee
+    return _normalize(buf, LOOP_PEAK)
 
 
 # =========================================================
@@ -364,7 +427,7 @@ def generate_theme(out_dir=None):
         "register_notes": "mechanical=informative-never-punitive; "
                           "feedback=reflecting-the-students-result; reward=warm",
         "sample_rate": SAMPLE_RATE,
-        "version": "1.0.0",
+        "version": "1.1.0",
     }
 
     manifest_path = os.path.join(out_dir, "manifest.json")
