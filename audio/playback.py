@@ -36,7 +36,7 @@ from audio.mixer import Mixer, Voice, load_wav_samples, samples_to_bytes
 
 # Audio layer build marker - lets anyone verify which version is running:
 #   python -c "from audio.playback import LAYER_VERSION; print(LAYER_VERSION)"
-LAYER_VERSION = "6C.2.0"
+LAYER_VERSION = "6C.2.1"
 
 SAMPLE_RATE = 44100
 TICK_MS = 50        # pump cadence
@@ -191,8 +191,11 @@ class SoundService:
             self._teardown_engine()
 
     def _pump(self):
-        """Generates and queues audio. Self-healing: any engine error
-        tears the sink down so the next emit() rebuilds it cleanly."""
+        """Generates and queues audio. Self-healing: a real engine error
+        tears the sink down so the next emit() rebuilds it cleanly.
+        Push-mode contract: NEVER write more than bytesFree() allows -
+        a full buffer is NORMAL, not an error (that misunderstanding is
+        what made the ambience die after ~1 second on Windows)."""
         try:
             if self._mixer.idle:
                 # Let the queued tail finish before releasing the device,
@@ -213,16 +216,20 @@ class SoundService:
                 if self._stream is None:
                     return
 
-            chunk_frames = SAMPLE_RATE * CHUNK_MS // 1000
-            target_bytes = SAMPLE_RATE * 2 * BUFFER_MS // 1000
-            queued = self._sink.bufferSize() - self._sink.bytesFree()  # bytes
+            free = self._sink.bytesFree()  # bytes of room in the device buffer
+            if free == 0:
+                return  # buffer full: the device simply hasn't drained yet
 
-            while queued < target_bytes:
-                mixed = self._mixer.tick(chunk_frames)
-                written = self._stream.write(samples_to_bytes(mixed))
-                if written <= 0:
-                    raise OSError("audio stream write failed")
-                queued += written
+            want_frames = SAMPLE_RATE * CHUNK_MS // 1000
+            if free > 0:
+                want_frames = min(want_frames, free // 2)  # 2 bytes per sample
+            if want_frames <= 0:
+                return
+
+            mixed = self._mixer.tick(want_frames)
+            written = self._stream.write(samples_to_bytes(mixed))
+            if written < 0:
+                raise OSError("audio stream write failed")
         except Exception:
             self._teardown_engine()
 
