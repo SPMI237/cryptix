@@ -26,10 +26,8 @@ THEME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "themes", T
 
 SFX_PEAK = 0.90          # every event sound peak-normalized to one consistent level
 LOOP_SECONDS = 12.0      # ambience loop length
-LOOP_PEAK = 0.85         # DIAGNOSTIC LOUD (-1.4 dBFS) - intentionally at SFX
-                         # level so a working loop cannot be missed. Set back
-                         # to a comfortable background level (~0.30-0.45)
-                         # once playback is confirmed on the field machine.
+LOOP_PEAK = 0.40         # FINAL level (~ -8 dBFS): clearly present behind the
+                         # 0.90 SFX without dominating (field-tuned 6C.1)
 TWO_PI = 2.0 * math.pi
 
 
@@ -393,41 +391,301 @@ LOOP_SOUNDS = {
 
 
 # =========================================================
+# GENERIC PROGRESSION ENGINE + THEME REGISTRY (6C.2-6C.4)
+# Each theme is a folder drop: 16 event recipes + 2 loops + metadata.
+# cyber_lab (above) keeps its approved hand-tuned recipes unchanged.
+# =========================================================
+
+def _progression_loop(chords, bell_spec, pad_attack, pad_release, pad_amp,
+                      sub_amp, sub_attack=None, thump_spec=None):
+    """Parameterized musical loop renderer.
+    bell_spec(pads) -> list of (freq, onset_s, amp, decay, attack, kind)
+    thump_spec      -> list of (freq, onset_s, amp, decay) low pulses, or None
+    """
+    buf = [0.0] * int(LOOP_SECONDS * SAMPLE_RATE)
+    seg = LOOP_SECONDS / len(chords)
+
+    for ci, (pads, sub) in enumerate(chords):
+        t0 = ci * seg
+        for f in pads:
+            voice, at = _pad_note(f, pad_amp, t0, seg,
+                                  attack_s=pad_attack, release_s=pad_release)
+            buf = _place(buf, voice, at)
+        sv, at = _pad_note(sub, sub_amp, t0, seg,
+                           attack_s=sub_attack or pad_attack,
+                           release_s=sub_attack or pad_release)
+        buf = _place(buf, sv, at)
+
+        for freq, onset, amp, decay, attack, kind in bell_spec(pads):
+            buf = _place(buf, tone(freq, 0.5, kind=kind, decay=decay,
+                                   amp=amp, attack=attack), t0 + onset)
+
+        if thump_spec:
+            for freq, onset, amp, decay in thump_spec:
+                buf = _place(buf, tone(freq, 0.15, decay=decay, amp=amp), t0 + onset)
+
+    buf = buf[:int(LOOP_SECONDS * SAMPLE_RATE)]  # exact loop-length guarantee
+    return _normalize(buf, LOOP_PEAK)
+
+
+# ---------------- Theme 2: premium_minimal (6C.2) ----------------
+# Apple/Linear-like: rounded soft sines, slow attacks, nothing sharp.
+
+def _pm_events():
+    def soft(f, dur, decay=5.0, amp=1.0):
+        return tone(f, dur, decay=decay, amp=amp, attack=0.05)
+    def pair(f1, f2, dur, gap, decay=5.0, amp=1.0):
+        return _place(soft(f1, dur, decay, amp), soft(f2, dur, decay, amp), gap)
+    return {
+        "academy_opened": lambda: pair(523.25, 659.25, 0.32, 0.15),
+        "lab_opened": lambda: pair(392.00, 493.88, 0.38, 0.18),
+        "experiment_selected": lambda: soft(1318.51, 0.05, decay=22, amp=0.6),
+        "experiment_started": lambda: pair(440.00, 554.37, 0.22, 0.12),
+        "structural_rejection": lambda: pair(987.77, 987.77, 0.06, 0.12, decay=14, amp=0.7),
+        "cryptographic_rejection": lambda: _place(soft(261.63, 0.45), soft(311.13, 0.42, amp=0.85), 0.0),
+        "control_group_success": lambda: _place(pair(523.25, 659.25, 0.26, 0.12),
+                                                soft(783.99, 0.26), 0.24),
+        "prediction_recorded": lambda: soft(783.99, 0.15),
+        "prediction_correct": lambda: pair(587.33, 739.99, 0.18, 0.14),
+        "prediction_incorrect": lambda: pair(493.88, 440.00, 0.18, 0.16, amp=0.8),
+        "matching_correct": lambda: soft(880.00, 0.12),
+        "matching_incorrect": lambda: pair(415.30, 369.99, 0.14, 0.14, amp=0.7),
+        "question_correct": lambda: pair(659.26, 783.99, 0.16, 0.14),
+        "question_incorrect": lambda: pair(493.88, 440.00, 0.16, 0.16, amp=0.8),
+        "challenge_completed": lambda: _place(pair(523.25, 659.25, 0.24, 0.12),
+                                              soft(783.99, 0.26), 0.24),
+        "xp_awarded": lambda: soft(1174.66, 0.10, amp=0.8),
+    }
+
+
+def _pm_academy_loop():
+    chords = [
+        ([261.63, 329.63, 392.00, 493.88], 130.81),  # Cmaj7
+        ([220.00, 261.63, 329.63, 392.00], 110.00),  # Am7
+        ([174.61, 220.00, 261.63, 329.63], 87.31),   # Fmaj7
+        ([196.00, 246.94, 293.66, 392.00], 98.00),   # G6
+    ]
+    def bells(pads):
+        return [(pads[1] * 2, 0.90, 0.20, 4.0, 0.06, "sine"),
+                (pads[3] * 1.0, 2.30, 0.14, 4.0, 0.06, "sine")]
+    return _progression_loop(chords, bells, pad_attack=0.8, pad_release=0.8,
+                             pad_amp=0.55, sub_amp=0.45)
+
+
+def _pm_lab_loop():
+    chords = [
+        ([246.94, 293.66, 349.23], 123.47),          # Bm
+        ([207.65, 246.94, 311.13], 103.83),          # Gbm
+        ([220.00, 261.63, 329.63], 110.00),          # Am
+        ([233.08, 277.18, 349.23], 116.54),          # Bbm
+    ]
+    def bells(pads):
+        return [(pads[0] * 2, 1.10, 0.18, 4.0, 0.07, "sine"),
+                (pads[2] * 1.0, 2.50, 0.12, 4.0, 0.07, "sine")]
+    return _progression_loop(chords, bells, pad_attack=0.9, pad_release=0.9,
+                             pad_amp=0.55, sub_amp=0.42)
+
+
+# ---------------- Theme 3: scientific (6C.3) ----------------
+# Clean analytical instrument: pure precise sines, calibration beeps.
+
+def _sc_events():
+    def ping(f, dur, decay=6.0, amp=1.0):
+        return tone(f, dur, decay=decay, amp=amp, attack=0.002)
+    def pair(f1, f2, dur, gap, decay=6.0, amp=1.0):
+        return _place(ping(f1, dur, decay, amp), ping(f2, dur, decay, amp), gap)
+    return {
+        "academy_opened": lambda: pair(659.26, 880.00, 0.26, 0.14),
+        "lab_opened": lambda: _place(ping(220.00, 0.45, decay=4), ping(440.00, 0.30), 0.20),
+        "experiment_selected": lambda: ping(2000.00, 0.03, decay=30, amp=0.55),
+        "experiment_started": lambda: tone(440.00, 0.22, sweep_to=1320.00, decay=5, attack=0.002),
+        "structural_rejection": lambda: pair(1760.00, 1760.00, 0.05, 0.11, decay=16, amp=0.7),
+        "cryptographic_rejection": lambda: _place(ping(220.00, 0.40), ping(277.18, 0.38, amp=0.85), 0.0),
+        "control_group_success": lambda: _place(pair(659.26, 880.00, 0.22, 0.10),
+                                                ping(1046.50, 0.22), 0.20),
+        "prediction_recorded": lambda: ping(987.77, 0.12),
+        "prediction_correct": lambda: pair(783.99, 987.77, 0.14, 0.12),
+        "prediction_incorrect": lambda: pair(659.26, 523.25, 0.16, 0.15, amp=0.75),
+        "matching_correct": lambda: ping(1244.51, 0.10),
+        "matching_incorrect": lambda: pair(587.33, 523.25, 0.13, 0.13, amp=0.7),
+        "question_correct": lambda: pair(880.00, 1046.50, 0.14, 0.12),
+        "question_incorrect": lambda: pair(659.26, 587.33, 0.14, 0.14, amp=0.75),
+        "challenge_completed": lambda: _place(pair(659.26, 783.99, 0.20, 0.11),
+                                              ping(987.77, 0.22), 0.22),
+        "xp_awarded": lambda: ping(1975.53, 0.07, amp=0.8),
+    }
+
+
+def _sc_academy_loop():
+    chords = [
+        ([261.63, 329.63, 392.00], 130.81),          # C
+        ([196.00, 246.94, 293.66], 98.00),           # G
+        ([220.00, 261.63, 329.63], 110.00),          # Am
+        ([174.61, 220.00, 261.63], 87.31),           # F
+    ]
+    def ticks(pads):
+        return [(pads[0] * 2, 0.50, 0.15, 12.0, 0.002, "sine"),
+                (pads[0] * 2, 1.50, 0.12, 12.0, 0.002, "sine"),
+                (pads[0] * 2, 2.50, 0.15, 12.0, 0.002, "sine")]
+    return _progression_loop(chords, ticks, pad_attack=0.5, pad_release=0.5,
+                             pad_amp=0.50, sub_amp=0.40)
+
+
+def _sc_lab_loop():
+    chords = [
+        ([146.83, 174.61, 220.00], 73.42),           # Dm
+        ([164.81, 196.00, 246.94], 82.41),           # Em
+        ([130.81, 164.81, 196.00], 65.41),           # C low
+        ([155.56, 185.00, 233.08], 77.78),           # Dbm
+    ]
+    def ticks(pads):
+        return [(pads[0] * 2, 0.75, 0.16, 10.0, 0.002, "sine"),
+                (pads[0] * 2, 1.75, 0.12, 10.0, 0.002, "sine"),
+                (pads[0] * 2, 2.50, 0.16, 10.0, 0.002, "sine")]
+    return _progression_loop(chords, ticks, pad_attack=0.55, pad_release=0.55,
+                             pad_amp=0.50, sub_amp=0.38)
+
+
+# ---------------- Theme 4: cyberpunk (6C.4) ----------------
+# Neon synthwave: band-limited square edge, sub thumps, dramatic sweeps.
+
+def _cp_events():
+    def edge(f, dur, decay=6.0, amp=0.8):
+        return tone(f, dur, kind="square", decay=decay, amp=amp)
+    def pair(f1, f2, dur, gap, decay=6.0, amp=0.8):
+        return _place(edge(f1, dur, decay, amp), edge(f2, dur, decay, amp), gap)
+    return {
+        "academy_opened": lambda: pair(261.63, 392.00, 0.28, 0.14, amp=0.6),
+        "lab_opened": lambda: _place(_place(edge(49.00, 0.55, decay=3.5),
+                                            tone(110.00, 0.35, sweep_to=440.00, decay=5, amp=0.6), 0.18),
+                                     edge(987.77, 0.10, decay=12, amp=0.5), 0.40),
+        "experiment_selected": lambda: edge(2500.00, 0.035, decay=30, amp=0.5),
+        "experiment_started": lambda: tone(165.00, 0.22, kind="square", sweep_to=990.00, decay=4.5, amp=0.75),
+        "structural_rejection": lambda: pair(1567.98, 1567.98, 0.06, 0.12, decay=16, amp=0.6),
+        "cryptographic_rejection": lambda: _place(_place(edge(138.59, 0.45, decay=5),
+                                                         edge(174.61, 0.42, decay=5, amp=0.85), 0.0),
+                                                  edge(46.25, 0.45, decay=4, amp=0.6), 0.0),
+        "control_group_success": lambda: _place(pair(440.00, 554.37, 0.24, 0.10, amp=0.6),
+                                                edge(659.26, 0.26, amp=0.6), 0.20),
+        "prediction_recorded": lambda: edge(987.77, 0.15),
+        "prediction_correct": lambda: pair(659.26, 987.77, 0.16, 0.14),
+        "prediction_incorrect": lambda: pair(554.37, 415.30, 0.18, 0.16, amp=0.7),
+        "matching_correct": lambda: edge(1318.51, 0.10),
+        "matching_incorrect": lambda: pair(493.88, 392.00, 0.14, 0.14, amp=0.7),
+        "question_correct": lambda: pair(739.99, 987.77, 0.15, 0.12),
+        "question_incorrect": lambda: pair(587.33, 462.25, 0.16, 0.15, amp=0.7),
+        "challenge_completed": lambda: _place(pair(523.25, 659.26, 0.22, 0.11, amp=0.7),
+                                              edge(783.99, 0.28, amp=0.7), 0.22),
+        "xp_awarded": lambda: tone(1318.51, 0.12, sweep_to=2637.02, decay=10, amp=0.7),
+    }
+
+
+def _cp_academy_loop():
+    chords = [
+        ([220.00, 261.63, 329.63], 110.00),          # Am
+        ([174.61, 220.00, 261.63], 87.31),           # F
+        ([261.63, 329.63, 392.00], 130.81),          # C
+        ([164.81, 207.65, 246.94], 82.41),           # E
+    ]
+    def bells(pads):
+        return [(pads[0] * 2, 0.60, 0.24, 5.0, 0.004, "square"),
+                (pads[2] * 2, 1.80, 0.20, 5.0, 0.004, "square")]
+    thumps = [(49.00, 0.00, 0.5, 7.0), (49.00, 1.20, 0.4, 7.0), (49.00, 2.40, 0.5, 7.0)]
+    return _progression_loop(chords, bells, pad_attack=0.4, pad_release=0.4,
+                             pad_amp=0.55, sub_amp=0.45, thump_spec=thumps)
+
+
+def _cp_lab_loop():
+    chords = [
+        ([185.00, 220.00, 277.18], 92.50),           # F#m
+        ([146.83, 174.61, 220.00], 73.42),           # Dm
+        ([155.56, 196.00, 233.08], 77.78),           # Ebm
+        ([138.59, 174.61, 207.65], 69.30),           # Cm
+    ]
+    def bells(pads):
+        return [(pads[0] * 2, 0.75, 0.26, 4.5, 0.004, "square"),
+                (pads[1] * 4, 1.90, 0.18, 4.5, 0.004, "square")]
+    thumps = [(43.65, 0.00, 0.55, 7.0), (43.65, 1.50, 0.45, 7.0), (43.65, 2.55, 0.55, 7.0)]
+    return _progression_loop(chords, bells, pad_attack=0.45, pad_release=0.45,
+                             pad_amp=0.55, sub_amp=0.45, thump_spec=thumps)
+
+
+# ---------------- The registry ----------------
+
+THEMES = {
+    "cyber_lab": {
+        "events": lambda: EVENT_SOUNDS,
+        "loops": lambda: LOOP_SOUNDS,
+        "description": "Cyber Laboratory - synthesized terminal identity: "
+                       "bright scanner blips, chord-progression ambience.",
+        "version": "1.1.0",
+    },
+    "premium_minimal": {
+        "events": _pm_events,
+        "loops": lambda: {"academy_loop": _pm_academy_loop, "lab_loop": _pm_lab_loop},
+        "description": "Premium Minimal - rounded soft sines, slow attacks, "
+                       "quiet modern-software aesthetic.",
+        "version": "1.0.0",
+    },
+    "scientific": {
+        "events": _sc_events,
+        "loops": lambda: {"academy_loop": _sc_academy_loop, "lab_loop": _sc_lab_loop},
+        "description": "Scientific Instrument - pure precise calibration beeps, "
+                       "measured tick patterns, analytical feel.",
+        "version": "1.0.0",
+    },
+    "cyberpunk": {
+        "events": _cp_events,
+        "loops": lambda: {"academy_loop": _cp_academy_loop, "lab_loop": _cp_lab_loop},
+        "description": "Cyberpunk - neon synthwave: square-edge tones, sub "
+                       "thumps, dramatic sweeps.",
+        "version": "1.0.0",
+    },
+}
+
+
+# =========================================================
 # THEME GENERATION
 # =========================================================
 
-def generate_theme(out_dir=None):
-    """Renders every event sound and loop, writes manifest.json.
+def render_theme(theme_name, out_dir=None):
+    """Renders one theme from the registry: every event sound + loops + manifest.
     Deterministic: identical inputs produce byte-identical output."""
-    out_dir = out_dir or THEME_DIR
+    if theme_name not in THEMES:
+        raise ValueError(f"Unknown theme '{theme_name}'. Available: {sorted(THEMES)}")
+    spec = THEMES[theme_name]
+    events = spec["events"]()
+    loops = spec["loops"]()
+
+    themes_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "themes")
+    out_dir = out_dir or os.path.join(themes_root, theme_name)
     os.makedirs(out_dir, exist_ok=True)
 
     written = []
 
-    for event in sorted(EVENT_SOUNDS):
-        samples = _fade_edges(_normalize(EVENT_SOUNDS[event](), SFX_PEAK))
+    for event in sorted(events):
+        samples = _fade_edges(_normalize(events[event](), SFX_PEAK))
         path = os.path.join(out_dir, event + ".wav")
         _write_wav(path, samples)
         written.append(event + ".wav")
 
-    for loop in sorted(LOOP_SOUNDS):
+    for loop in sorted(loops):
         path = os.path.join(out_dir, loop + ".wav")
-        _write_wav(path, LOOP_SOUNDS[loop]())
+        _write_wav(path, loops[loop]())
         written.append(loop + ".wav")
 
     manifest = {
-        "description": "Cyber Laboratory - Cryptix Academy Theme 1: synthesized "
-                       "terminal/laboratory identity (calm Academy, darker Lab).",
-        "events": sorted(EVENT_SOUNDS.keys()),
+        "description": spec["description"],
+        "events": sorted(events.keys()),
         "generated_by": "python -m audio.make_sounds",
         "license": "Generated in-house by Cryptix make_sounds.py (pure Python, "
                    "deterministic). No third-party assets.",
-        "loops": sorted(LOOP_SOUNDS.keys()),
-        "name": THEME_NAME,
+        "loops": sorted(loops.keys()),
+        "name": theme_name,
         "register_notes": "mechanical=informative-never-punitive; "
                           "feedback=reflecting-the-students-result; reward=warm",
         "sample_rate": SAMPLE_RATE,
-        "version": "1.1.0",
+        "version": spec["version"],
     }
 
     manifest_path = os.path.join(out_dir, "manifest.json")
@@ -438,10 +696,26 @@ def generate_theme(out_dir=None):
     return {"dir": out_dir, "files": written, "manifest": manifest}
 
 
+def render_all_themes(themes_dir=None):
+    """Regenerates every registered theme (the single reproducible entry point)."""
+    themes_dir = themes_dir or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "themes")
+    results = {}
+    for theme_name in sorted(THEMES):
+        results[theme_name] = render_theme(theme_name, os.path.join(themes_dir, theme_name))
+    return results
+
+
+def generate_theme(out_dir=None):
+    """Backward-compatible wrapper: renders the default cyber_lab theme."""
+    return render_theme(THEME_NAME, out_dir)
+
+
 if __name__ == "__main__":
-    result = generate_theme()
-    print(f"Cryptix audio theme '{THEME_NAME}' generated at {result['dir']}")
-    for name in result["files"]:
-        size = os.path.getsize(os.path.join(result["dir"], name))
-        print(f"  {name:<32} {size:>8,} bytes")
-    print(f"  {'manifest.json':<32} written")
+    results = render_all_themes()
+    for theme_name, result in results.items():
+        print(f"Cryptix audio theme '{theme_name}' -> {result['dir']}")
+        for name in result["files"]:
+            size = os.path.getsize(os.path.join(result["dir"], name))
+            print(f"  {name:<32} {size:>8,} bytes")
+        print(f"  {'manifest.json':<32} written")

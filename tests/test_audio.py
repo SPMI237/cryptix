@@ -16,6 +16,7 @@ from audio.make_sounds import (
     SFX_PEAK,
     LOOP_PEAK,
     generate_theme,
+    render_all_themes,
 )
 from audio import sound_manager as sm
 from audio import playback as pb
@@ -41,50 +42,62 @@ def _theme_wav_names(directory):
 # 1. Generator: theme files complete and valid
 # ---------------------------------------------------------
 
-def test_theme_files_complete():
-    expected = sorted([e + ".wav" for e in EVENT_SOUNDS] + [l + ".wav" for l in LOOP_SOUNDS])
-    assert _theme_wav_names(THEME_DIR) == expected  # complete AND no orphans
+def _all_theme_dirs():
+    return [os.path.join(sm.THEMES_DIR, name) for name in sm.list_themes()]
 
-    with open(os.path.join(THEME_DIR, "manifest.json"), "r", encoding="utf-8") as f:
-        manifest = json.load(f)
-    assert manifest["name"] == "cyber_lab"
-    assert sorted(manifest["events"]) == sorted(EVENT_SOUNDS.keys())
-    assert sorted(manifest["loops"]) == sorted(LOOP_SOUNDS.keys())
+
+def test_theme_files_complete():
+    theme_dirs = _all_theme_dirs()
+    assert len(theme_dirs) >= 4  # cyber_lab, premium_minimal, scientific, cyberpunk
+
+    expected = sorted([e + ".wav" for e in EVENT_SOUNDS] + [l + ".wav" for l in LOOP_SOUNDS])
+    for theme_dir in theme_dirs:
+        assert _theme_wav_names(theme_dir) == expected, theme_dir  # complete AND no orphans
+
+        with open(os.path.join(theme_dir, "manifest.json"), "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        assert manifest["name"] == os.path.basename(theme_dir)
+        assert sorted(manifest["events"]) == sorted(EVENT_SOUNDS.keys())
+        assert sorted(manifest["loops"]) == sorted(LOOP_SOUNDS.keys())
 
 
 def test_sfx_files_are_valid_wavs():
-    for event in sorted(EVENT_SOUNDS):
-        meta, n, data = _read_wav(os.path.join(THEME_DIR, event + ".wav"))
-        assert meta == (1, 2, SAMPLE_RATE), f"{event}: bad format {meta}"
-        duration = n / SAMPLE_RATE
-        assert duration <= 0.85, f"{event}: too long ({duration:.3f}s)"
-        peak = max(abs(v) for v in data)
-        # uniformly peak-normalized (silence here would be a packaging failure)
-        assert int(0.75 * SFX_PEAK * 32767) <= peak <= 32767, f"{event}: peak={peak}"
+    for theme_dir in _all_theme_dirs():
+        for event in sorted(EVENT_SOUNDS):
+            meta, n, data = _read_wav(os.path.join(theme_dir, event + ".wav"))
+            assert meta == (1, 2, SAMPLE_RATE), f"{theme_dir}/{event}: bad format {meta}"
+            duration = n / SAMPLE_RATE
+            assert duration <= 0.85, f"{theme_dir}/{event}: too long ({duration:.3f}s)"
+            peak = max(abs(v) for v in data)
+            # uniformly peak-normalized (silence here would be a packaging failure)
+            assert int(0.75 * SFX_PEAK * 32767) <= peak <= 32767, f"{theme_dir}/{event}: peak={peak}"
 
 
 def test_loops_are_valid_and_seamless():
-    for loop in sorted(LOOP_SOUNDS):
-        meta, n, data = _read_wav(os.path.join(THEME_DIR, loop + ".wav"))
-        assert meta == (1, 2, SAMPLE_RATE), f"{loop}: bad format {meta}"
-        assert n == int(LOOP_SECONDS * SAMPLE_RATE), f"{loop}: wrong loop length"
-        peak = max(abs(v) for v in data)
-        expected = LOOP_PEAK * 32767
-        assert 0.85 * expected <= peak <= 1.05 * expected, f"{loop}: level peak={peak}"
-        # seamlessness tripwire: the wrap-around jump must be inaudible
-        jump = abs(data[-1] - data[0])
-        assert jump < 3000, f"{loop}: loop boundary jump {jump}"
+    for theme_dir in _all_theme_dirs():
+        for loop in sorted(LOOP_SOUNDS):
+            meta, n, data = _read_wav(os.path.join(theme_dir, loop + ".wav"))
+            assert meta == (1, 2, SAMPLE_RATE), f"{theme_dir}/{loop}: bad format {meta}"
+            assert n == int(LOOP_SECONDS * SAMPLE_RATE), f"{theme_dir}/{loop}: wrong loop length"
+            peak = max(abs(v) for v in data)
+            expected = LOOP_PEAK * 32767
+            assert 0.85 * expected <= peak <= 1.05 * expected, f"{theme_dir}/{loop}: level peak={peak}"
+            # seamlessness tripwire: the wrap-around jump must be inaudible
+            jump = abs(data[-1] - data[0])
+            assert jump < 3000, f"{theme_dir}/{loop}: loop boundary jump {jump}"
 
 
 def test_generation_is_deterministic(tmp_path):
-    result = generate_theme(str(tmp_path))
-    assert result["files"]
-    for name in _theme_wav_names(THEME_DIR) + ["manifest.json"]:
-        with open(os.path.join(THEME_DIR, name), "rb") as f:
-            committed = f.read()
-        with open(os.path.join(str(tmp_path), name), "rb") as f:
-            regenerated = f.read()
-        assert committed == regenerated, f"{name}: regeneration is not byte-identical"
+    results = render_all_themes(str(tmp_path))
+    assert len(results) >= 4
+    for theme_dir in _all_theme_dirs():
+        theme_name = os.path.basename(theme_dir)
+        for name in _theme_wav_names(theme_dir) + ["manifest.json"]:
+            with open(os.path.join(theme_dir, name), "rb") as f:
+                committed = f.read()
+            with open(os.path.join(str(tmp_path), theme_name, name), "rb") as f:
+                regenerated = f.read()
+            assert committed == regenerated, f"{theme_name}/{name}: regeneration is not byte-identical"
 
 
 # ---------------------------------------------------------

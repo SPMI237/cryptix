@@ -1,5 +1,5 @@
 {
-  "description": "Cyber Laboratory - synthesized terminal identity: bright scanner blips, chord-progression ambience.",
+  "description": "Cyberpunk - neon synthwave: square-edge tones, sub thumps, dramatic sweeps.",
   "events": [
     "academy_opened",
     "challenge_completed",
@@ -24,8 +24,8 @@
     "academy_loop",
     "lab_loop"
   ],
-  "name": "cyber_lab",
+  "name": "cyberpunk",
   "register_notes": "mechanical=informative-never-punitive; feedback=reflecting-the-students-result; reward=warm",
   "sample_rate": 44100,
-  "version": "1.1.0"
+  "version": "1.0.0"
 }
