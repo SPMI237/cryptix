@@ -1,21 +1,13 @@
+# ui/main_window.py
 
 import os
+import time
 import requests
-from utils.helpers import evaluate_password_strength
-from core.logger import read_secure_log, log_event, clear_secure_log
-from PySide6.QtWidgets import QComboBox, QGridLayout
-from core.file_handler import (
-    encrypt_path,
-    decrypt_path,
-    verify_path,
-    ALGO_AES,
-    ALGO_CHACHA,
-    ALGO_XCHACHA,
-    AuthenticationError
-)
-from cryptix_engine.reports import IntegrityReport
-
-from utils.settings import load_settings, save_settings
+import sys
+import secrets
+import string
+import webbrowser
+from io import BytesIO
 
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -32,7 +24,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QDialog,
     QTextEdit,
-
+    QComboBox,
+    QGridLayout
 )
 
 from PySide6.QtCore import (
@@ -46,17 +39,24 @@ from PySide6.QtCore import (
 )
 
 from PySide6.QtGui import QPainter, QColor, QIcon
-from cryptix_engine.container import analyze_container_structure
+
+from utils.helpers import evaluate_password_strength
+from core.logger import read_secure_log, log_event, clear_secure_log
+from core.file_handler import (
+    encrypt_path,
+    decrypt_path,
+    verify_path,
+    ALGO_AES,
+    ALGO_CHACHA,
+    ALGO_XCHACHA,
+    AuthenticationError
+)
+from cryptix_engine.reports import IntegrityReport
+from utils.settings import load_settings, save_settings
+from cryptix_engine.container import analyze_container_structure, generate_fingerprint, parse_header
 from cryptix_engine.constants import algorithm_name
-from cryptix_engine.container import parse_header
 from cryptix_engine.aead import verify_stream
 from cryptix_engine.kdf import derive_key
-from cryptix_engine.exceptions import AuthenticationError
-from io import BytesIO
-from cryptix_engine.container import generate_fingerprint
-
-
-
 
 # =========================================================
 # Animated Toggle (Custom Widget)
@@ -240,6 +240,8 @@ class WorkerThread(QThread):
 
         except Exception as e:
             self.error.emit(e)  # <-- Now passing the actual Error Object
+
+
 # =========================================================
 # Main Window (CRYPTIX CORE Application)
 # =========================================================
@@ -249,20 +251,15 @@ class MainWindow(QMainWindow):
 
         self.version = "1.4.0"
         self.setWindowTitle("Cryptix Core")
-        import sys
-        import os
-        from PySide6.QtGui import QIcon
 
         if getattr(sys, 'frozen', False):
-          base_path = sys._MEIPASS
+            base_path = sys._MEIPASS
         else:
-          base_path = os.path.abspath(".")
+            base_path = os.path.abspath(".")
 
         icon_path = os.path.join(base_path, "cryptix.ico")
         self.setWindowIcon(QIcon(icon_path))
         self.resize(650, 680)
-
-       
 
         self.file_path = None
         self.settings = load_settings()
@@ -319,6 +316,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(clear_button)
 
         dialog.exec()
+
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -343,23 +341,23 @@ class MainWindow(QMainWindow):
 
         header_container = QHBoxLayout()
 
-# LEFT SECTION
+        # LEFT SECTION
         left_layout = QHBoxLayout()
         title = QLabel("🛡 CRYPTIX CORE")
         title.setStyleSheet("font-size: 20px; font-weight: bold; letter-spacing: 2px;")
         left_layout.addWidget(title)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-# CENTER SECTION
+        # CENTER SECTION
         center_layout = QHBoxLayout()
         self.algorithm_badge = QLabel("AES")
         self.algorithm_badge.setStyleSheet(
-        "background-color: #00F0FF; color: #000000; padding: 4px 12px; border-radius: 3px; font-weight: bold;"
-)
+            "background-color: #00F0FF; color: #000000; padding: 4px 12px; border-radius: 3px; font-weight: bold;"
+        )
         center_layout.addWidget(self.algorithm_badge)
         center_layout.setAlignment(Qt.AlignCenter)
 
-# RIGHT SECTION
+        # RIGHT SECTION
         right_layout = QHBoxLayout()
 
         self.status_led = QLabel("● READY")
@@ -379,7 +377,7 @@ class MainWindow(QMainWindow):
 
         right_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
 
-# ADD TO MAIN HEADER
+        # ADD TO MAIN HEADER
         header_container.addLayout(left_layout, 1)
         header_container.addLayout(center_layout, 1)
         header_container.addLayout(right_layout, 1)
@@ -401,7 +399,7 @@ class MainWindow(QMainWindow):
         settings_layout = QVBoxLayout()
         self.settings_panel.setLayout(settings_layout)
 
-     # Encryption Method Selector
+        # Encryption Method Selector
         self.algorithm_selector = QComboBox()
         self.algorithm_selector.addItem("AES-256-GCM", ALGO_AES)
         self.algorithm_selector.addItem("ChaCha20-Poly1305", ALGO_CHACHA)
@@ -434,12 +432,8 @@ class MainWindow(QMainWindow):
         self.benchmark_button.setStyleSheet("color: #00F0FF;")
         self.benchmark_button.clicked.connect(self.start_benchmark)
         settings_layout.addWidget(self.benchmark_button)
-        # Subtitle
-        subtitle = QLabel("AES‑256 GCM Secure Encryption")
-        subtitle.setStyleSheet("color: gray; font-size: 11px;")
-        layout.addWidget(subtitle)
 
-        # File selection
+        # Subtitle
         subtitle = QLabel(f"Cryptix Core  |  AES‑256 GCM & ChaCha20  |  v{self.version}")
         subtitle.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(subtitle)
@@ -457,11 +451,11 @@ class MainWindow(QMainWindow):
         self.select_image_button.clicked.connect(self.select_image)
 
         for btn in (
-         self.select_file_button,
-         self.select_folder_button,
-         self.select_image_button,
-    ):
-         btn.setMinimumHeight(36)
+             self.select_file_button,
+             self.select_folder_button,
+             self.select_image_button,
+        ):
+             btn.setMinimumHeight(36)
 
         selection_layout.addWidget(self.select_file_button)
         selection_layout.addWidget(self.select_folder_button)
@@ -473,6 +467,7 @@ class MainWindow(QMainWindow):
         self.file_label = QLabel("No target selected")
         self.file_label.setStyleSheet("color: #A0AEC0; font-style: italic;")
         layout.addWidget(self.file_label)
+
         # --------------------------
         # Password + Strength Layout
         # --------------------------
@@ -490,15 +485,14 @@ class MainWindow(QMainWindow):
         self.generate_password_button.setToolTip("Generate Secure Password")
         self.generate_password_button.clicked.connect(self.generate_password)
         password_row.addWidget(self.generate_password_button)
-        divider1 = QFrame()
-        divider1.setFrameShape(QFrame.Shape.HLine)
-        divider1.setStyleSheet("background-color: #262F3F; max-height: 1px;")
-        layout.addWidget(divider1)
-
-       # Strength bars (vertical beside password)
+        
+        divider2 = QFrame()
+        divider2.setFrameShape(QFrame.Shape.HLine)
+        divider2.setStyleSheet("background-color: #262F3F; max-height: 1px;")
+        layout.addWidget(divider2)
 
         layout.addLayout(password_row)
-        # --- Password Strength Bar (full width below password) ---
+        
         # --- Password Strength Bar (short and aligned left) ---
         self.strength_bar = QProgressBar()
         self.strength_bar.setRange(0, 100)
@@ -513,6 +507,7 @@ class MainWindow(QMainWindow):
         strength_row.addStretch()  # Keeps it aligned left
 
         layout.addLayout(strength_row)
+
         # Confirm password input
         self.confirm_input = QLineEdit()
         self.confirm_input.setPlaceholderText("Confirm Password")
@@ -533,7 +528,7 @@ class MainWindow(QMainWindow):
             "Secure Delete After Decryption"
         )
 
-# --- Options Grid (2 rows, 2 columns) ---
+        # --- Options Grid (2 rows, 2 columns) ---
         options_grid = QGridLayout()
         options_grid.addWidget(self.show_password, 0, 0)
         options_grid.addWidget(self.secure_delete_checkbox, 0, 1)
@@ -542,7 +537,7 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(options_grid)
 
-# Keyfile button
+        # Keyfile button
         self.keyfile_button = QPushButton("Select Keyfile")
         self.keyfile_button.setEnabled(False)
         self.keyfile_button.clicked.connect(self.select_keyfile)
@@ -555,6 +550,7 @@ class MainWindow(QMainWindow):
         self.secure_delete_after_decrypt_checkbox.stateChanged.connect(self.persist_settings)
         self.learning_toggle.stateChanged.connect(self.persist_settings)
 
+        # Buttons (Encrypt/Decrypt)
         # Pre-Flight Intelligence Row
         preflight_layout = QHBoxLayout()
         preflight_layout.setSpacing(10)
@@ -616,6 +612,24 @@ class MainWindow(QMainWindow):
         self.status_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.status_label)
 
+        # Stage 7B.1: status banner (info/success/error) with copyable text
+        self.status_banner = QFrame()
+        self.status_banner.setStyleSheet(
+            "QFrame { border: 1px solid #262F3F; border-radius: 4px; background: #0F131C; }"
+        )
+        banner_layout = QHBoxLayout(self.status_banner)
+        banner_layout.setContentsMargins(8, 4, 8, 4)
+        self.banner_label = QLabel("")
+        self.banner_label.setWordWrap(True)
+        self.banner_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        banner_layout.addWidget(self.banner_label, 1)
+        self.banner_copy_btn = QPushButton("📋 Copy")
+        self.banner_copy_btn.setFixedHeight(22)
+        self.banner_copy_btn.clicked.connect(self._copy_banner)
+        banner_layout.addWidget(self.banner_copy_btn)
+        self.status_banner.hide()
+        layout.addWidget(self.status_banner)
+
         # Cryptix Academy Button (Hidden by default, shown when learning mode toggle is on)
         self.academy_button = QPushButton("🎓 Open Cryptix Academy")
         self.academy_button.setStyleSheet("color: #00F0FF; background-color: #131822; border: 1px solid #00F0FF; font-weight: bold; padding: 10px;")
@@ -627,9 +641,16 @@ class MainWindow(QMainWindow):
         self.view_log_button = QPushButton("View Secure Audit Log")
         self.view_log_button.clicked.connect(self.show_audit_log)
         layout.addWidget(self.view_log_button)
+
         # Handle file passed via file association
         if self.file_path:
-            self.file_label.setText(f"Selected: {os.path.basename(self.file_path)}")
+            if isinstance(self.file_path, list):
+                if len(self.file_path) == 1:
+                    self._set_file_label(f"Selected: {os.path.basename(self.file_path[0])}", self.file_path[0])
+                else:
+                    self._set_file_label(f"Selected {len(self.file_path)} files", "\n".join(self.file_path))
+            else:
+                self._set_file_label(f"Selected: {os.path.basename(self.file_path)}", self.file_path)
             self.validate_inputs()
 
         self.update_algorithm_badge()
@@ -670,32 +691,29 @@ class MainWindow(QMainWindow):
         self.worker.start()    
 
     def generate_password(self):
-        import secrets
-        import string
-
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
         password = ''.join(secrets.choice(alphabet) for _ in range(20))
 
         self.password_input.setText(password)
         self.confirm_input.setText(password)
 
-    # Make password visible temporarily
+        # Make password visible temporarily
         self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self.confirm_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self.show_password.setChecked(True)
 
     def show_about_dialog(self):
-       dialog = QDialog(self)
-       dialog.setWindowTitle("About Cryptix Core")
-       dialog.setMinimumWidth(600)
-       dialog.setMinimumHeight(450)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("About Cryptix Core")
+        dialog.setMinimumWidth(600)
+        dialog.setMinimumHeight(450)
 
-       layout = QVBoxLayout(dialog)
-       layout.setContentsMargins(20, 20, 20, 20)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
 
-       about_text = QTextEdit()
-       about_text.setReadOnly(True)
-       about_text.setStyleSheet("""
+        about_text = QTextEdit()
+        about_text.setReadOnly(True)
+        about_text.setStyleSheet("""
         QTextEdit {
             background-color: #0B0F19;
             border: none;
@@ -706,7 +724,7 @@ class MainWindow(QMainWindow):
         }
     """)
 
-       about_text.setHtml(f"""
+        about_text.setHtml(f"""
         <h2 style="color:#00F0FF;">CRYPTIX CORE v{self.version}</h2>
 
         <b>Platform:</b><br>
@@ -747,14 +765,14 @@ class MainWindow(QMainWindow):
         <center>© 2026 Cryptix Platform</center>
         """)
 
-       layout.addWidget(about_text)
+        layout.addWidget(about_text)
 
-       close_button = QPushButton("Close")
-       close_button.setMinimumHeight(32)
-       close_button.clicked.connect(dialog.close)
-       layout.addWidget(close_button)
+        close_button = QPushButton("Close")
+        close_button.setMinimumHeight(32)
+        close_button.clicked.connect(dialog.close)
+        layout.addWidget(close_button)
 
-       dialog.exec()
+        dialog.exec()
 
     def check_for_updates(self):
         try:
@@ -776,11 +794,73 @@ class MainWindow(QMainWindow):
                     )
 
                     if reply == QMessageBox.StandardButton.Yes:
-                        import webbrowser
                         webbrowser.open("https://github.com/SPMI237/cryptix/releases")
 
         except Exception:
             pass  # Fail silently if no internet or error   
+
+    # =========================================================
+    # Stage 7B: status banner + working state helpers
+    # =========================================================
+    _BANNER_STYLES = {
+        "info": "QFrame { border: 1px solid #00F0FF; border-radius: 4px; background: #101A20; }",
+        "success": "QFrame { border: 1px solid #00FF66; border-radius: 4px; background: #0F1A14; }",
+        "error": "QFrame { border: 1px solid #FF3B3B; border-radius: 4px; background: #1F1012; }",
+    }
+    _BANNER_TEXT_COLORS = {"info": "#7FDFFF", "success": "#7FFFA8", "error": "#FFB4B4"}
+
+    def show_banner(self, kind, text):
+        """Stage 7B.1: kind in {info, success, error}; text stays copyable."""
+        self.banner_label.setText(str(text))
+        color = self._BANNER_TEXT_COLORS.get(kind, "#E2E8F0")
+        self.banner_label.setStyleSheet(f"color: {color}; border: none; font-size: 12px;")
+        self.status_banner.setStyleSheet(self._BANNER_STYLES.get(kind, self._BANNER_STYLES["info"]))
+        self.status_banner.show()
+
+    def clear_banner(self):
+        self.banner_label.setText("")
+        self.status_banner.hide()
+
+    def _set_file_label(self, text, full_path):
+        """Stage 7B.3: middle-elided display + full path in the tooltip."""
+        elided = self.file_label.fontMetrics().elidedText(
+            text, Qt.TextElideMode.ElideMiddle, 380
+        )
+        self.file_label.setText(elided)
+        self.file_label.setToolTip(str(full_path))
+
+    def _copy_banner(self):
+        from PySide6.QtWidgets import QApplication
+        text = self.banner_label.text()
+        if text:
+            QApplication.clipboard().setText(text)
+
+    def _start_busy(self):
+        """Stage 7B.2: indeterminate progress + live elapsed time (worker runs
+        on its own thread, so the timer ticks freely)."""
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)
+        self._busy_started = time.monotonic()
+        if not hasattr(self, "_busy_timer"):
+            self._busy_timer = QTimer(self)
+            self._busy_timer.setInterval(100)
+            self._busy_timer.timeout.connect(self._tick_busy)
+        self._busy_timer.start()
+
+    def _tick_busy(self):
+        mode = getattr(self, "worker", None)
+        labels = {"encrypt": "Encrypting", "decrypt": "Decrypting",
+                  "verify": "Verifying", "analyze": "Analyzing"}
+        label = labels.get(getattr(mode, "mode", ""), "Working")
+        elapsed = time.monotonic() - self._busy_started
+        self.show_banner("info", f"⏳ {label}… {elapsed:.1f} s")
+
+    def _stop_busy(self):
+        timer = getattr(self, "_busy_timer", None)
+        if timer is not None:
+            timer.stop()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
 
     def set_ui_state(self, state: str):
         """
@@ -804,6 +884,8 @@ class MainWindow(QMainWindow):
             self.status_led.setStyleSheet("color: #00FF66; font-weight: bold;")
 
         elif state == "PROCESSING":
+            self.clear_banner()  # Stage 7B.1: a new action clears stale results
+            self._start_busy()   # Stage 7B.2: busy bar + elapsed timer
             self.encrypt_button.setEnabled(False)
             self.decrypt_button.setEnabled(False)
             self.password_input.setEnabled(False)
@@ -826,15 +908,15 @@ class MainWindow(QMainWindow):
             self.status_led.setStyleSheet("color: #FF3B3B; font-weight: bold;")
 
     def toggle_settings_panel(self):
-     if self.settings_panel.isVisible():
-         self.settings_panel.hide()
-     else:
-        # Position under hamburger button
-        button_pos = self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft())
-        window_pos = self.mapFromGlobal(button_pos)
+        if self.settings_panel.isVisible():
+            self.settings_panel.hide()
+        else:
+            # Position under hamburger button
+            button_pos = self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft())
+            window_pos = self.mapFromGlobal(button_pos)
 
-        self.settings_panel.move(window_pos.x() - 200, window_pos.y())
-        self.settings_panel.show()
+            self.settings_panel.move(window_pos.x() - 200, window_pos.y())
+            self.settings_panel.show()
 
     # =====================================================
     # Lockout System
@@ -856,30 +938,31 @@ class MainWindow(QMainWindow):
         self.status_led.setStyleSheet("color: #FF3B3B; font-weight: bold;")
 
     def update_countdown(self):
-     self.lock_seconds_remaining -= 1
+        self.lock_seconds_remaining -= 1
 
-     if self.lock_seconds_remaining <= 0:
-        self.lock_timer.stop()
-        self.failed_attempts = 0
-        self.is_locked = False
+        if self.lock_seconds_remaining <= 0:
+            self.lock_timer.stop()
+            self.failed_attempts = 0
+            self.is_locked = False
 
-        self.status_led.setText("● READY")
-        self.status_led.setStyleSheet("color: #00FF66; font-weight: bold;")
+            self.status_led.setText("● READY")
+            self.status_led.setStyleSheet("color: #00FF66; font-weight: bold;")
 
-        self.password_input.setEnabled(True)
-        self.confirm_input.setEnabled(True)
-        self.use_keyfile_checkbox.setEnabled(True)
+            self.password_input.setEnabled(True)
+            self.confirm_input.setEnabled(True)
+            self.use_keyfile_checkbox.setEnabled(True)
 
-        if self.use_keyfile_checkbox.isChecked():
-            self.keyfile_button.setEnabled(True)
+            if self.use_keyfile_checkbox.isChecked():
+                self.keyfile_button.setEnabled(True)
 
-        self.status_label.setText("You may try again.")
-        self.validate_inputs()
+            self.status_label.setText("You may try again.")
+            self.validate_inputs()
 
-     else:
-        self.status_label.setText(
-            f"Too many failed attempts. Try again in {self.lock_seconds_remaining}s"
-        )
+        else:
+            self.status_label.setText(
+                f"Too many failed attempts. Try again in {self.lock_seconds_remaining}s"
+            )
+
     # =====================================================
     # Theme Management
     # =====================================================
@@ -888,7 +971,6 @@ class MainWindow(QMainWindow):
             self.apply_dark_theme()
         else:
             self.apply_light_theme()
-
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -908,7 +990,7 @@ class MainWindow(QMainWindow):
             file_path = urls[0].toLocalFile()
             if os.path.exists(file_path):
                 self.file_path = file_path
-                self.file_label.setText(f"Selected: {os.path.basename(file_path)}")
+                self._set_file_label(f"Selected: {os.path.basename(file_path)}", file_path)
                 self.validate_inputs()
 
         self.drag_overlay.hide()        
@@ -956,7 +1038,7 @@ class MainWindow(QMainWindow):
                 background-color: #242D3E; 
                 border: 1px solid #00F0FF;
                 color: #00F0FF;
-        }
+            }
             QPushButton:pressed {
                 background-color: #00F0FF;
                 color: #000000;
@@ -1058,17 +1140,6 @@ class MainWindow(QMainWindow):
     def apply_light_theme(self):
         # Reset stylesheet to default or apply a light theme
         self.setStyleSheet("") # This will remove custom styling, revert to system default/light
-        # For a custom light theme, you'd define CSS here similar to apply_dark_theme
-        # Example light theme:
-        # self.setStyleSheet("""
-        #    QWidget { background-color: #F0F0F0; color: #121212; }
-        #    QLineEdit { background-color: #FFFFFF; border: 1px solid #CCC; padding: 6px; border-radius: 4px; }
-        #    QPushButton { background-color: #E0E0E0; border: 1px solid #BBB; padding: 6px; border-radius: 4px; }
-        #    QPushButton:hover { background-color: #D0D0D0; }
-        #    QPushButton:disabled { background-color: #F8F8F8; color: #AAA; }
-        #    QProgressBar { background-color: #FFFFFF; border: 1px solid #CCC; }
-        #    QProgressBar::chunk { background-color: #008CBA; }
-        # """)
 
     # =====================================================
     # Input/Validation Logic
@@ -1124,6 +1195,7 @@ class MainWindow(QMainWindow):
             )
 
         self.analyze_button.setEnabled(bool(enable_analyze))
+
     def update_strength(self):
         password = self.password_input.text()
 
@@ -1136,7 +1208,7 @@ class MainWindow(QMainWindow):
 
         strength = evaluate_password_strength(password)
 
-    # Map strength to percentage
+        # Map strength to percentage
         if strength == 0:
             score = 0
         elif strength == 1:
@@ -1150,7 +1222,7 @@ class MainWindow(QMainWindow):
 
         self.strength_bar.setValue(score)
 
-    # Color selection
+        # Color selection
         if score <= 25:
             color = "#FF3B3B"
         elif score <= 50:
@@ -1172,13 +1244,13 @@ class MainWindow(QMainWindow):
         """)
      
     def toggle_password_visibility(self):
-     mode = (
-        QLineEdit.EchoMode.Normal
-        if self.show_password.isChecked()
-        else QLineEdit.EchoMode.Password
-    )
-     self.password_input.setEchoMode(mode)
-     self.confirm_input.setEchoMode(mode)
+        mode = (
+            QLineEdit.EchoMode.Normal
+            if self.show_password.isChecked()
+            else QLineEdit.EchoMode.Password
+        )
+        self.password_input.setEchoMode(mode)
+        self.confirm_input.setEchoMode(mode)
 
     def persist_settings(self):
         # Load existing settings first to preserve other keys (like hardware_profile and learning_profile)
@@ -1188,7 +1260,8 @@ class MainWindow(QMainWindow):
         data["algorithm"] = self.algorithm_selector.currentData()
         data["secure_delete_encrypt"] = self.secure_delete_checkbox.isChecked()
         data["secure_delete_decrypt"] = self.secure_delete_after_decrypt_checkbox.isChecked()
-        save_settings(data)
+        save_settings(data) 
+
     # =====================================================
     # Worker Thread Management
     # =====================================================
@@ -1220,6 +1293,7 @@ class MainWindow(QMainWindow):
         self.worker.error.connect(self.on_error)
 
         self.worker.start()
+
     def update_progress(self, value):
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 100)
@@ -1256,11 +1330,11 @@ class MainWindow(QMainWindow):
                 keyfile_data = f.read()
 
         self.worker = WorkerThread(
-        "verify",
-        self.file_path,
-        self.password_input.text(),
-        keyfile_data
-    )
+            "verify",
+            self.file_path,
+            self.password_input.text(),
+            keyfile_data
+        )
         self.worker.return_report = True
 
         self.worker.progress.connect(self.update_progress)
@@ -1413,11 +1487,6 @@ class MainWindow(QMainWindow):
     def on_benchmark_result(self, result):
         QMessageBox.information(self, "Benchmark Complete", result)    
 
-    def update_progress(self, value):
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(value)
-
     def set_ui_busy_state(self, busy):
         self.encrypt_button.setEnabled(not busy)
         self.decrypt_button.setEnabled(not busy)
@@ -1435,7 +1504,7 @@ class MainWindow(QMainWindow):
         self.show_password.setEnabled(not busy)
 
     def on_success(self, result):
-        self.progress_bar.setVisible(False)
+        self._stop_busy()
         self.failed_attempts = 0
 
         if not self.is_locked:
@@ -1448,7 +1517,7 @@ class MainWindow(QMainWindow):
         # Secure wipe password fields
         self.password_input.clear()
         self.confirm_input.clear()
-        if hasattr(self.worker, "password"):
+        if hasattr(self, "worker") and hasattr(self.worker, "password"):
             self.worker.password = None
 
         # Reset keyfile UI & state
@@ -1488,26 +1557,29 @@ class MainWindow(QMainWindow):
             dialog.exec()
             return
 
-        # Default success popup for encrypt/decrypt
-        QMessageBox.information(self, "Success", "Operation completed successfully!")
+        # Stage 7B.1: success banner (copyable, non-interrupting)
+        target = result if isinstance(result, str) else ""
+        self.show_banner("success", f"✓ {action.title()} completed successfully" + (f" — {target}" if target else ""))
         
     def on_error(self, message):
-        self.progress_bar.setVisible(False)
+        self._stop_busy()
         self.status_label.setText(f"ERROR: {str(message)}")
         self.set_ui_busy_state(False)
         self.validate_inputs()
-        self.worker.password = None
+        if hasattr(self, "worker"):
+            self.worker.password = None
 
         # Structured authentication failure detection
-        if self.worker.mode in ["decrypt", "verify"] and isinstance(message, AuthenticationError):
+        if hasattr(self, "worker") and self.worker.mode in ["decrypt", "verify"] and isinstance(message, AuthenticationError):
             self.failed_attempts += 1
             if self.failed_attempts >= 3:
                 self.trigger_lockout()
 
-        if self.worker.mode == "verify":
-            QMessageBox.critical(self, "Verification Failed", "Integrity check failed — file may be tampered or password incorrect.")
+        # Stage 7B.1: error banner with copyable detail (persists until next action)
+        if hasattr(self, "worker") and self.worker.mode == "verify":
+            self.show_banner("error", f"✗ Verification failed — the file may be tampered or the password incorrect.\n{message}")
         else:
-            QMessageBox.critical(self, "Error", str(message))
+            self.show_banner("error", f"✗ {message}")
         # Reset keyfile UI & state
         self.keyfile_path = None
         self.use_keyfile_checkbox.setChecked(False)
@@ -1519,6 +1591,7 @@ class MainWindow(QMainWindow):
         if not self.is_locked:
             self.status_led.setText("● READY")
             self.status_led.setStyleSheet("color: #00FF66; font-weight: bold;")
+
     def update_algorithm_badge(self):
         algo = self.algorithm_selector.currentData()
 
@@ -1547,8 +1620,7 @@ class MainWindow(QMainWindow):
             else:
                 self.file_label.setText(f"Selected {len(file_paths)} files")
             self.validate_inputs()
-
-
+  
     def select_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
         if folder_path:
@@ -1586,7 +1658,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(password_dialog)
 
         password_input = QLineEdit()
-        password_input.setEchoMode(QLineEdit.Password)
+        password_input.setEchoMode(QLineEdit.EchoMode.Password)
         password_input.setPlaceholderText("Enter password")
         layout.addWidget(password_input)
 
@@ -1600,7 +1672,7 @@ class MainWindow(QMainWindow):
         ok_btn.clicked.connect(password_dialog.accept)
         cancel_btn.clicked.connect(password_dialog.reject)
 
-        if password_dialog.exec() != QDialog.Accepted:
+        if password_dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
         password = password_input.text()
@@ -1663,8 +1735,7 @@ class MainWindow(QMainWindow):
             )
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))      
-
-
+  
     def select_image(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
             self,
@@ -1718,4 +1789,3 @@ class MainWindow(QMainWindow):
         is_on = self.learning_toggle.isChecked()
         self.academy_button.setVisible(is_on)
         self.persist_settings()
-

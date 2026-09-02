@@ -15,9 +15,11 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QListWidget,
     QComboBox,
-    QSlider
+    QSlider,
+    QProgressBar
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtWidgets import QGraphicsOpacityEffect
 from cryptix_academy.progress import ProgressStore
 from cryptix_academy.curriculum import get_lessons, get_questions_for_lesson
 from cryptix_academy.models import LearningProgress
@@ -210,6 +212,7 @@ class AcademyDialog(QDialog):
         return (first_attempt_correct / len(questions)) * 100.0
 
     def refresh_dashboard(self):
+        self.mastery_bars = {}
         # Clear existing items in layout
         while self.level_list_layout.count():
             item = self.level_list_layout.takeAt(0)
@@ -259,6 +262,25 @@ class AcademyDialog(QDialog):
             # Connect transition closure
             btn.clicked.connect(lambda checked=False, l=lesson: self.open_lesson(l))
             self.level_list_layout.addWidget(btn)
+
+            # Stage 7A.5: slim mastery bar (existing mastery data, now visual)
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setValue(int(mastery))
+            bar.setFixedHeight(6)
+            bar.setTextVisible(False)
+            if completed:
+                bar_color = "#00FF66"   # mastered
+            elif btn.isEnabled():
+                bar_color = "#00F0FF"   # current (unlocked, not finished)
+            else:
+                bar_color = "#262F3F"   # locked
+            bar.setStyleSheet(
+                f"QProgressBar {{ border: none; background-color: #131822; border-radius: 3px; }}"
+                f"QProgressBar::chunk {{ background-color: {bar_color}; border-radius: 3px; }}"
+            )
+            self.mastery_bars[lesson.id] = bar
+            self.level_list_layout.addWidget(bar)
 
             # If the current level is completed, it unlocks the next level
             if completed:
@@ -522,6 +544,14 @@ class AcademyDialog(QDialog):
                 self.clear_order_btn.clicked.connect(self.clear_ordering_sequence)
                 self.challenge_layout.addWidget(self.clear_order_btn)
 
+        # Stage 7A.3: inline wrong-answer feedback panel (no modal interruption)
+        self.inline_feedback_label = QLabel("")
+        self.inline_feedback_label.setWordWrap(True)
+        self.inline_feedback_label.hide()
+        self.challenge_layout.addWidget(self.inline_feedback_label)
+        for opt_btn in getattr(self, "options_buttons", []):
+            opt_btn.clicked.connect(self._clear_inline_feedback)
+
         # Action Buttons
         btn_box = QHBoxLayout()
         back_to_lesson_btn = QPushButton("← Lesson")
@@ -549,6 +579,25 @@ class AcademyDialog(QDialog):
         self.submit_btn.setStyleSheet("background-color: #00FF66; color: #000000; font-weight: bold;")
         self.submit_btn.clicked.connect(lambda: self.submit_answer(lesson))
         btn_box.addWidget(self.submit_btn)
+
+        # Stage 7A.6: keyboard shortcuts (retired and rebuilt on each open_challenge)
+        from PySide6.QtGui import QShortcut, QKeySequence
+        for old_sc in getattr(self, "_page_shortcuts", []):
+            old_sc.setEnabled(False)
+            old_sc.deleteLater()
+        self._page_shortcuts = []
+
+        def _add_shortcut(seq, handler):
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.activated.connect(handler)
+            self._page_shortcuts.append(sc)
+
+        _add_shortcut("Return", self.submit_btn.click)
+        _add_shortcut("Enter", self.submit_btn.click)
+        if not self.is_review_mode:
+            for i in range(4):
+                _add_shortcut(str(i + 1), lambda i=i: self._keyboard_select(i))
+            _add_shortcut("H", self._keyboard_hint)
 
         self.challenge_layout.addLayout(btn_box)
         self.stacked_widget.setCurrentIndex(2)
@@ -672,6 +721,8 @@ class AcademyDialog(QDialog):
 
             # Instantly update XP label inside active challenge window
             self.update_xp_header()
+            if awarded_xp > 0:
+                self._fly_xp(awarded_xp)  # Stage 7A.4: zero-award animates nothing
 
             # Show Challenge Summary Dialog
             first_attempt_status = "YES" if res.attempts == 1 else "NO"
@@ -718,11 +769,7 @@ class AcademyDialog(QDialog):
                 self.stacked_widget.setCurrentIndex(0)
         else:
             self.update_xp_reward_display()  # attempt tier dropped - show new worth
-            QMessageBox.critical(
-                self,
-                "❌ Incorrect",
-                res.feedback
-            )
+            self.show_inline_feedback(res.feedback)
 
     # =========================================================
     # Stage 6C - Audio Session (Academy owns the ambience)
@@ -771,6 +818,71 @@ class AcademyDialog(QDialog):
     # =========================================================
     # Resets & Navigation Utilities
     # =========================================================
+    def _keyboard_select(self, idx):
+        """Stage 7A.6: keys 1-4 select an answer option (choice/boolean)."""
+        if self.is_review_mode:
+            return
+        if self.active_question.question_type not in ("choice", "boolean"):
+            return
+        buttons = getattr(self, "options_buttons", [])
+        if 0 <= idx < len(buttons) and buttons[idx].isEnabled():
+            buttons[idx].click()
+
+    def _keyboard_hint(self):
+        btn = getattr(self, "hint_btn", None)
+        if btn is not None and btn.isEnabled():
+            self.request_hint_action()
+
+    def _fly_xp(self, amount):
+        """Stage 7A.4: '+N XP' rises ~30px and fades near the XP header.
+        Purely cosmetic; fire-and-forget; never blocks (QTimer steps)."""
+        fly = QLabel(f"+{amount} XP", self)
+        fly.setStyleSheet("color: #00FF66; font-size: 14px; font-weight: bold; background: transparent; border: none;")
+        effect = QGraphicsOpacityEffect(fly)
+        fly.setGraphicsEffect(effect)
+        start = self.xp_label.mapTo(self, QPoint(0, 0))
+        fly.move(start)
+        fly.show()
+        fly.raise_()
+
+        steps, state = 18, {"i": 0}
+        timer = QTimer(self)
+        timer.setInterval(50)
+
+        def tick():
+            state["i"] += 1
+            frac = state["i"] / steps
+            try:
+                fly.move(start + QPoint(0, -int(30 * frac)))
+                effect.setOpacity(1.0 - frac)
+            except RuntimeError:
+                timer.stop()
+                return
+            if state["i"] >= steps:
+                timer.stop()
+                fly.hide()
+                fly.deleteLater()
+
+        timer.timeout.connect(tick)
+        timer.start()
+        self._fly_timer = timer  # keep a reference alive
+
+    def show_inline_feedback(self, feedback):
+        """Stage 7A.3: wrong answers stay in-page; the question remains active."""
+        self.inline_feedback_label.setText(
+            f"❌ {feedback}\nTry again — or press H for a hint."
+        )
+        self.inline_feedback_label.setStyleSheet(
+            "background-color: #2A1215; border: 1px solid #FF3B3B; border-radius: 4px;"
+            "color: #FFB4B4; padding: 10px; font-size: 12px;"
+        )
+        self.inline_feedback_label.show()
+
+    def _clear_inline_feedback(self):
+        if hasattr(self, "inline_feedback_label"):
+            self.inline_feedback_label.hide()
+            self.inline_feedback_label.setText("")
+
     def update_xp_reward_display(self):
         """XP transparency: live badge showing what a correct answer is
         worth RIGHT NOW (attempt tier + hint penalties factored)."""

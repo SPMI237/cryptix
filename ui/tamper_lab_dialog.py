@@ -20,8 +20,10 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QComboBox
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtGui import QColor
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QGraphicsOpacityEffect
 from cryptix_academy.sandbox import (
     TamperLabSandbox,
     locate_filename_offset,
@@ -378,7 +380,7 @@ class TamperLabDialog(QDialog):
         self.terminal_area.setMinimumHeight(110)  # allows compression on short screens
         self.terminal_area.setText("[!] Volatile In-Memory Sandbox Initialized.\n[!] Control Group 'No-Op' active — untampered baseline container loaded.\n[!] Ready for experiment execution.")
 
-        right_column.addWidget(terminal_card, 2)
+        right_column.addWidget(terminal_card, 0)  # Stage 7A: natural height keeps the reveal scrollable into view
 
         # --- 2. HEX / BEFORE-AFTER INSPECTOR ---
         hex_card = QFrame()
@@ -415,7 +417,7 @@ class TamperLabDialog(QDialog):
         hex_layout.addWidget(self.hex_table)
         self.hex_table.setMinimumHeight(90)  # allows compression on short screens
 
-        right_column.addWidget(hex_card, 2)
+        right_column.addWidget(hex_card, 0)
 
         # --- 3. EDUCATIONAL ASSESSMENT CARD ---
         assessment_card = QFrame()
@@ -428,6 +430,11 @@ class TamperLabDialog(QDialog):
         assess_title.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px; border: none;")
         assess_layout.addWidget(assess_title)
 
+        # Stage 7A.2: layer identity chip (amber Layer 1 / cyan Layer 2 / green verified)
+        self.layer_chip = QLabel("")
+        self.layer_chip.hide()
+        assess_layout.addWidget(self.layer_chip)
+
         self.assess_exp = QLabel("Expected Outcome: Container must authenticate and decrypt successfully.")
         self.assess_act = QLabel("Actual Outcome:   Not Run")
         self.assess_res = QLabel("Assessment:       WAITING")
@@ -437,7 +444,7 @@ class TamperLabDialog(QDialog):
             lbl.setStyleSheet("color: #E2E8F0; font-family: Consolas, monospace; font-size: 11px; border: none;")
             assess_layout.addWidget(lbl)
 
-        right_column.addWidget(assessment_card, 1)
+        right_column.addWidget(assessment_card, 0)
 
         # --- 4. SCIENTIFIC METHOD: MATCHING & REVEAL CARD (Stage 6B) ---
         matching_card = QFrame()
@@ -512,7 +519,8 @@ class TamperLabDialog(QDialog):
         self.reveal_label.setStyleSheet("color: #E2E8F0; font-family: Consolas, monospace; font-size: 11px; border: none;")
         match_layout.addWidget(self.reveal_label)
 
-        right_column.addWidget(matching_card, 2)
+        right_column.addWidget(matching_card, 0)
+        right_column.addStretch(1)
 
         # Right column scrolls on short screens (e.g. once the reveal text appears)
         right_container = QWidget()
@@ -522,10 +530,19 @@ class TamperLabDialog(QDialog):
         right_scroll.setWidgetResizable(True)
         right_scroll.setFrameShape(QFrame.Shape.NoFrame)
         right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.right_scroll = right_scroll  # Stage 7A: reveal auto-scroll target
         main_layout.addWidget(right_scroll, 3)
 
         # Stage 7A.1: columns live under the stepper
         outer_layout.addLayout(main_layout)
+
+        # Stage 7A.6: Enter follows the gated primary action
+        from PySide6.QtGui import QShortcut, QKeySequence
+        self._enter_shortcuts = []
+        for seq in ("Return", "Enter"):
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.activated.connect(self._enter_primary)
+            self._enter_shortcuts.append(sc)
 
     # =========================================================
     # Stage 6C - Audio (mechanical register: the machinery reports)
@@ -604,6 +621,76 @@ class TamperLabDialog(QDialog):
                 else self.STEPPER_STAGES[idx]
             )
 
+    def _fly_xp(self, amount):
+        """Stage 7A.4: '+N XP' rises and fades near the assessment card."""
+        fly = QLabel(f"+{amount} XP", self)
+        fly.setStyleSheet("color: #00FF66; font-size: 14px; font-weight: bold; background: transparent; border: none;")
+        effect = QGraphicsOpacityEffect(fly)
+        fly.setGraphicsEffect(effect)
+        start = self.assess_res.mapTo(self, QPoint(0, 0))
+        fly.move(start)
+        fly.show()
+        fly.raise_()
+
+        steps, state = 18, {"i": 0}
+        timer = QTimer(self)
+        timer.setInterval(50)
+
+        def tick():
+            state["i"] += 1
+            frac = state["i"] / steps
+            try:
+                fly.move(start + QPoint(0, -int(30 * frac)))
+                effect.setOpacity(1.0 - frac)
+            except RuntimeError:
+                timer.stop()
+                return
+            if state["i"] >= steps:
+                timer.stop()
+                fly.hide()
+                fly.deleteLater()
+
+        timer.timeout.connect(tick)
+        timer.start()
+        self._fly_timer = timer
+
+    def _enter_primary(self):
+        """Stage 7A.6: Enter triggers the action the SESSION gate currently
+        allows (buttons may stay enabled for free re-runs; the pedagogy
+        state machine is authoritative)."""
+        state = self.session.state
+        if state == TamperChallengeSession.STATE_PREDICTION:
+            self.record_prediction_action()
+        elif state == TamperChallengeSession.STATE_ARMED:
+            self.execute_active_experiment()
+        elif state == TamperChallengeSession.STATE_MATCHING:
+            self.submit_matching_action()
+
+    def update_layer_chip(self, trace):
+        """Stage 7A.2: glanceable defense-layer identity, driven exclusively
+        by trace.rejection_layer / trace.success (never re-derived)."""
+        if trace.success:
+            if self.active_experiment.is_control_group:
+                self.layer_chip.setText("✓ VERIFIED — BASELINE HOLDS")
+                color = "#00FF66"
+            else:
+                self.layer_chip.hide()
+                return
+        elif trace.rejection_layer == "STRUCTURAL":
+            self.layer_chip.setText("LAYER 1 — STRUCTURAL VALIDATION")
+            color = "#FFA500"
+        elif trace.rejection_layer == "CRYPTOGRAPHIC":
+            self.layer_chip.setText("LAYER 2 — AEAD VERIFICATION")
+            color = "#00F0FF"
+        else:
+            self.layer_chip.hide()
+            return
+        self.layer_chip.setStyleSheet(
+            f"color: {color}; border: 1px solid {color}; border-radius: 3px; "
+            "padding: 3px 8px; font-size: 11px; font-weight: bold;"
+        )
+        self.layer_chip.show()
+
     def reset_challenge_cycle(self):
         """Binds the pedagogy session to the active experiment and re-locks the cycle."""
         challenge = get_challenge_for_experiment(self.active_experiment.name)
@@ -634,6 +721,8 @@ class TamperLabDialog(QDialog):
             combo.setEnabled(False)
         self.match_submit_btn.setEnabled(False)
         self.reveal_label.setText("")
+        self.layer_chip.hide()
+        self.layer_chip.setText("")
 
         self.terminal_area.setText(
             "[!] Volatile In-Memory Sandbox Initialized.\n"
@@ -683,9 +772,25 @@ class TamperLabDialog(QDialog):
         reveal_events = [verdict_event, match_event, "challenge_completed"]
         if awarded > 0:
             reveal_events.append("xp_awarded")
+            self._fly_xp(awarded)  # Stage 7A.4: only actual awards animate
         self.audio.sequence(*reveal_events)
 
         self.render_reveal(awarded)
+
+        # Stage 7A: bring the reveal into view the moment it appears.
+        # The reveal sits at the bottom of the column - scrolling to the
+        # bottom is deterministic (ensureWidgetVisible can settle mid-range).
+        from PySide6.QtCore import QTimer as _QTim
+
+        def _scroll_reveal_to_bottom():
+            # Finalize the layout first: the scrollbar range is not yet
+            # updated when the timer fires, and a stale maximum would land
+            # the scroll mid-content instead of at the reveal.
+            self.right_scroll.widget().adjustSize()
+            sb = self.right_scroll.verticalScrollBar()
+            sb.setValue(sb.maximum())
+
+        _QTim.singleShot(0, _scroll_reveal_to_bottom)
 
     def render_reveal(self, awarded):
         challenge = self.session.challenge
@@ -773,6 +878,7 @@ class TamperLabDialog(QDialog):
                 self.hex_table.item(row, col).setTextAlignment(Qt.AlignCenter)
 
         # 4. Update Educational Assessment Labels
+        self.update_layer_chip(trace)
         self.assess_exp.setText(f"Expected Outcome: {self.active_experiment.expected_security}")
         
         if trace.success:
