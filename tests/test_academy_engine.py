@@ -173,3 +173,44 @@ def test_sequential_level_unlocking():
             break
     # Level remains 2 because of the sequential missing gap in Level 2!
     assert current_level == 2
+
+def test_xp_potential_live_transparency(sample_data):
+    """Stage 6D: the live 'Worth: X XP' badge must mirror engine reality."""
+    lesson, question = sample_data
+    session = ChallengeSession(question, lesson)
+
+    # Fresh question: full base value
+    assert session.current_xp_potential() == 10
+
+    # Each hint immediately reduces the visible reward (-2 per level)
+    session.request_next_hint()
+    assert session.current_xp_potential() == 8
+    session.request_next_hint()
+    assert session.current_xp_potential() == 6
+
+    # Failed attempts drop the tier (attempt 2 = 7 for non-ordering)
+    session.evaluate("0")  # wrong (correct is B/"1")
+    assert session.attempts == 2
+    assert session.current_xp_potential() == max(5, 7 - 2 * session.hint_level)
+
+    # Hint penalty never pushes below the 5 XP floor
+    session.request_next_hint()
+    assert session.current_xp_potential() == 5
+
+def test_xp_potential_always_equals_awarded_score(sample_data):
+    """Anti-drift: for every state, the displayed potential IS the awarded XP."""
+    lesson, question = sample_data
+
+    for hints in range(4):
+        for wrong_answers in range(3):
+            session = ChallengeSession(question, lesson)
+            for _ in range(hints):
+                session.request_next_hint()
+            for _ in range(wrong_answers):
+                session.evaluate("0")  # wrong on purpose
+            potential = session.current_xp_potential()
+            res = session.evaluate("1")  # correct
+            assert res.correct and res.score == potential, (
+                f"hints={hints} wrong={wrong_answers}: "
+                f"badge showed {potential} but engine awarded {res.score}"
+            )
