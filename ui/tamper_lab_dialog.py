@@ -87,9 +87,24 @@ class TamperLabDialog(QDialog):
         self.init_ui()
         self.reset_challenge_cycle()
 
+    # Stage 7A.1 - stepper chip labels (display form with emojis, plain names)
+    STEPPER_STAGES = ["🔮 PREDICT", "⚔️ EXPERIMENT", "🔍 INVESTIGATE", "🔗 MATCH", "📖 REVEAL"]
+    STEPPER_NAMES = ["PREDICT", "EXPERIMENT", "INVESTIGATE", "MATCH", "REVEAL"]
+    _CHIP_STYLES = {
+        "pending": "color: #6B7A90; font-size: 11px; font-weight: bold; border: none; padding: 2px 6px;",
+        "active": "color: #00F0FF; font-size: 11px; font-weight: bold; border: 1px solid #00F0FF; border-radius: 3px; padding: 2px 8px; background-color: #101A24;",
+        "done": "color: #00FF66; font-size: 11px; font-weight: bold; border: none; padding: 2px 6px;",
+    }
+
     def init_ui(self):
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        # Stage 7A.1: outer layout hosts the stage stepper above both columns
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(20, 12, 20, 14)
+        outer_layout.setSpacing(10)
+        outer_layout.addWidget(self._build_stage_stepper())
+
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(16)
 
         # =========================================================
@@ -509,6 +524,9 @@ class TamperLabDialog(QDialog):
         right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         main_layout.addWidget(right_scroll, 3)
 
+        # Stage 7A.1: columns live under the stepper
+        outer_layout.addLayout(main_layout)
+
     # =========================================================
     # Stage 6C - Audio (mechanical register: the machinery reports)
     # =========================================================
@@ -539,10 +557,58 @@ class TamperLabDialog(QDialog):
     # Stage 6B - Scientific Method Cycle
     # (UI renders state; the pedagogy engine owns correctness & reveal timing)
     # =========================================================
+    # =========================================================
+    # Stage 7A.1 - Scientific method stage stepper
+    # Pure presentation: consumes TamperChallengeSession.state only and
+    # adds no logic or state of its own.
+    # =========================================================
+    def _build_stage_stepper(self):
+        stepper = QFrame()
+        stepper.setStyleSheet("border: 1px solid #262F3F; background-color: #0F131C; border-radius: 4px;")
+        row = QHBoxLayout(stepper)
+        row.setContentsMargins(12, 8, 12, 8)
+        row.setSpacing(6)
+
+        self.stepper_chips = []
+        for i, label in enumerate(self.STEPPER_STAGES):
+            chip = QLabel(label)
+            chip.setProperty("state", "pending")
+            row.addWidget(chip)
+            self.stepper_chips.append(chip)
+            if i < len(self.STEPPER_STAGES) - 1:
+                arrow = QLabel("→")
+                arrow.setStyleSheet("color: #4A5568; font-size: 11px; border: none;")
+                row.addWidget(arrow)
+        row.addStretch()
+        return stepper
+
+    def update_stage_stepper(self):
+        """Maps the pedagogy session state onto chip states (no logic of its own)."""
+        state = self.session.state
+        if state == TamperChallengeSession.STATE_PREDICTION:
+            profile = ["active", "pending", "pending", "pending", "pending"]
+        elif state == TamperChallengeSession.STATE_ARMED:
+            profile = ["done", "active", "pending", "pending", "pending"]
+        elif state == TamperChallengeSession.STATE_MATCHING:
+            # Evidence renders before the session enters MATCHING,
+            # so INVESTIGATE is already complete at this point.
+            profile = ["done", "done", "done", "active", "pending"]
+        else:  # STATE_REVEALED
+            profile = ["done", "done", "done", "done", "active"]
+
+        for idx, (chip, chip_state) in enumerate(zip(self.stepper_chips, profile)):
+            chip.setProperty("state", chip_state)
+            chip.setStyleSheet(self._CHIP_STYLES[chip_state])
+            chip.setText(
+                f"✓ {self.STEPPER_NAMES[idx]}" if chip_state == "done"
+                else self.STEPPER_STAGES[idx]
+            )
+
     def reset_challenge_cycle(self):
         """Binds the pedagogy session to the active experiment and re-locks the cycle."""
         challenge = get_challenge_for_experiment(self.active_experiment.name)
         self.session.reset(challenge)
+        self.update_stage_stepper()
 
         # Prediction card refresh
         self.predict_question.setText(challenge.prediction_question)
@@ -589,6 +655,7 @@ class TamperLabDialog(QDialog):
             self.predict_btn.setEnabled(False)
             self.run_btn.setEnabled(True)
             self.audio.emit("prediction_recorded")
+            self.update_stage_stepper()
             self.terminal_area.append("[✓] Prediction recorded. Experiment unlocked — run it to gather evidence.")
         else:
             self.terminal_area.append("[!] Prediction already recorded for this cycle.")
@@ -597,6 +664,7 @@ class TamperLabDialog(QDialog):
         selections = [combo.currentIndex() for _, combo in self.match_rows]
         if not self.session.submit_matching(selections):
             return  # invalid submission (engine rejected); cycle state unchanged
+        self.update_stage_stepper()
 
         # Lock matching inputs — the reveal is one-shot per cycle
         for _, combo in self.match_rows:
@@ -724,6 +792,7 @@ class TamperLabDialog(QDialog):
             for _, combo in self.match_rows:
                 combo.setEnabled(True)
             self.match_submit_btn.setEnabled(True)
+            self.update_stage_stepper()
             self.terminal_area.append(
                 "[✓] Investigation unlocked: examine the trace and hex evidence above, then complete the matching."
             )
