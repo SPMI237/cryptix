@@ -624,23 +624,44 @@ class MainWindow(QMainWindow):
         self.banner_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         banner_layout.addWidget(self.banner_label, 1)
         self.banner_copy_btn = QPushButton("📋 Copy")
-        self.banner_copy_btn.setFixedHeight(22)
+        self.banner_copy_btn.setFixedHeight(24)
+        self.banner_copy_btn.setMinimumWidth(96)
+        self.banner_copy_btn.setStyleSheet(
+            "QPushButton { padding: 2px 12px; font-size: 11px; color: #A0AEC0;"
+            " background: #131822; border: 1px solid #262F3F; border-radius: 3px; }"
+            "QPushButton:hover { color: #E2E8F0; border: 1px solid #00F0FF; }"
+        )
         self.banner_copy_btn.clicked.connect(self._copy_banner)
         banner_layout.addWidget(self.banner_copy_btn)
+
+        # Fix: dismissible banner - errors stay until read, but can be closed
+        self.banner_dismiss_btn = QPushButton("✕")
+        self.banner_dismiss_btn.setFixedSize(24, 24)
+        self.banner_dismiss_btn.setToolTip("Dismiss this message")
+        self.banner_dismiss_btn.setStyleSheet(
+            "QPushButton { padding: 0; font-size: 12px; color: #A0AEC0;"
+            " background: #131822; border: 1px solid #262F3F; border-radius: 3px; }"
+            "QPushButton:hover { color: #FF3B3B; border: 1px solid #FF3B3B; }"
+        )
+        self.banner_dismiss_btn.clicked.connect(self.clear_banner)
+        banner_layout.addWidget(self.banner_dismiss_btn)
         self.status_banner.hide()
         layout.addWidget(self.status_banner)
 
-        # Cryptix Academy Button (Hidden by default, shown when learning mode toggle is on)
+        # Cryptix Academy + Audit Log share ONE row so the window footprint
+        # never changes when learning mode is toggled (Stage 7 fix).
         self.academy_button = QPushButton("🎓 Open Cryptix Academy")
         self.academy_button.setStyleSheet("color: #00F0FF; background-color: #131822; border: 1px solid #00F0FF; font-weight: bold; padding: 10px;")
         self.academy_button.clicked.connect(self.start_academy)
         self.academy_button.hide()
-        layout.addWidget(self.academy_button)
 
-        # View Audit Log Button
         self.view_log_button = QPushButton("View Secure Audit Log")
         self.view_log_button.clicked.connect(self.show_audit_log)
-        layout.addWidget(self.view_log_button)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self.academy_button, 1)
+        bottom_row.addWidget(self.view_log_button, 1)
+        layout.addLayout(bottom_row)
 
         # Handle file passed via file association
         if self.file_path:
@@ -809,15 +830,30 @@ class MainWindow(QMainWindow):
     }
     _BANNER_TEXT_COLORS = {"info": "#7FDFFF", "success": "#7FFFA8", "error": "#FFB4B4"}
 
+    _BANNER_AUTO_CLEAR_MS = 6000  # success messages fade; errors stay dismissible
+
     def show_banner(self, kind, text):
-        """Stage 7B.1: kind in {info, success, error}; text stays copyable."""
+        """Stage 7B.1: kind in {info, success, error}; text stays copyable.
+        Success banners auto-clear; error banners persist until dismissed
+        or the next action (so they can be read and copied calmly)."""
+        self._banner_gen = getattr(self, "_banner_gen", 0) + 1
+        gen = self._banner_gen
         self.banner_label.setText(str(text))
         color = self._BANNER_TEXT_COLORS.get(kind, "#E2E8F0")
         self.banner_label.setStyleSheet(f"color: {color}; border: none; font-size: 12px;")
         self.status_banner.setStyleSheet(self._BANNER_STYLES.get(kind, self._BANNER_STYLES["info"]))
         self.status_banner.show()
+        if kind == "success":
+            from PySide6.QtCore import QTimer as _QTim
+
+            def _auto_clear():
+                if gen == self._banner_gen:  # a newer banner took over - keep it
+                    self.clear_banner()
+
+            _QTim.singleShot(self._BANNER_AUTO_CLEAR_MS, _auto_clear)
 
     def clear_banner(self):
+        self._banner_gen = getattr(self, "_banner_gen", 0) + 1  # cancel pending auto-clear
         self.banner_label.setText("")
         self.status_banner.hide()
 

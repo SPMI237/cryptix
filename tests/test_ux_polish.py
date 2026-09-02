@@ -422,3 +422,68 @@ def test_long_filename_elision():
     assert mw.file_label.toolTip() == full_path
     assert "…" in mw.file_label.text() or len(mw.file_label.text()) < len(f"Selected: {long_name}")
     assert mw.file_label.text() != f"Selected: {long_name}"  # definitely elided
+
+
+def test_banner_dismiss_button_clears_errors():
+    """Fix: error banners persist (readable/copyable) until explicitly dismissed."""
+    _app()
+    mw = _make_main_window()
+
+    mw.show_banner("error", "✗ AuthenticationError: MAC check failed")
+    assert not mw.status_banner.isHidden()
+
+    mw.banner_dismiss_btn.click()  # the X button
+    assert mw.status_banner.isHidden()
+
+
+def test_success_banner_auto_clears():
+    """Fix: success banners fade on their own; errors do not."""
+    from PySide6.QtCore import QEventLoop, QTimer as QTim
+
+    _app()
+    mw = _make_main_window()
+    mw._BANNER_AUTO_CLEAR_MS = 60  # speed the test up
+
+    mw.show_banner("success", "✓ Encrypt completed")
+    assert not mw.status_banner.isHidden()
+
+    loop = QEventLoop()
+    QTim.singleShot(300, loop.quit)
+    loop.exec()
+    assert mw.status_banner.isHidden()  # auto-cleared
+
+    mw.show_banner("error", "✗ stays until dismissed")
+    loop2 = QEventLoop()
+    QTim.singleShot(300, loop2.quit)
+    loop2.exec()
+    assert not mw.status_banner.isHidden()  # errors persist
+
+
+def test_learning_toggle_never_pushes_audit_button_out():
+    """Fix: Academy + Audit Log share one row - the footprint is constant."""
+    from PySide6.QtCore import QPoint
+
+    app = _app()
+    mw = _make_main_window()
+
+    # Be independent of whatever learning_mode was persisted by earlier runs
+    mw.learning_toggle.setChecked(False)
+    app.processEvents()
+    assert mw.academy_button.isHidden()
+
+    try:
+        mw.learning_toggle.setChecked(True)   # shows the Academy button
+        app.processEvents()
+        assert not mw.academy_button.isHidden()
+
+        # Both buttons must sit fully INSIDE the visible window
+        for btn in (mw.academy_button, mw.view_log_button):
+            pos = btn.mapTo(mw, QPoint(0, 0))
+            assert pos.y() >= 0, f"{btn.text()} above the window"
+            assert pos.y() + btn.height() <= mw.height(), (
+                f"{btn.text()} clipped: bottom {pos.y() + btn.height()} > window {mw.height()}"
+            )
+            assert btn.isVisible()
+    finally:
+        mw.learning_toggle.setChecked(False)  # never leak state into other tests
+        app.processEvents()
