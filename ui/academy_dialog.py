@@ -411,6 +411,11 @@ class AcademyDialog(QDialog):
         category_label.setStyleSheet("color: #00F0FF; font-weight: bold; font-size: 11px;")
         self.challenge_layout.addWidget(category_label)
 
+        # Live XP reward badge (XP transparency: what a correct answer is worth NOW)
+        self.xp_reward_label = QLabel("")
+        self.challenge_layout.addWidget(self.xp_reward_label)
+        self.update_xp_reward_display()
+
         question_label = QLabel(self.active_question.question)
         question_label.setWordWrap(True)
         question_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #E2E8F0;")
@@ -552,6 +557,7 @@ class AcademyDialog(QDialog):
         hint_text = self.active_session.request_next_hint()
         self.hint_display_label.setText(hint_text)
         self.hint_display_label.show()
+        self.update_xp_reward_display()  # hint penalty applies immediately
 
         # If all hints are revealed (hint_level reaches 3), show exhaustion state
         if self.active_session.hint_level >= 3:
@@ -626,6 +632,7 @@ class AcademyDialog(QDialog):
         # 3. Handle result
         if res.correct:
             xp_reward = res.score
+            awarded_xp = 0  # actually granted (0 on re-completion / review)
             
             # Check if this challenge is already completed to avoid duplicate farming
             if self.active_question.id not in self.progress.completed_challenges:
@@ -636,6 +643,7 @@ class AcademyDialog(QDialog):
                     "first_attempt": (res.attempts == 1)
                 }
                 self.progress.xp += xp_reward
+                awarded_xp = xp_reward
 
                 # Stage 6C: reward register - XP granted, challenge completed.
                 # Sequenced (never simultaneous) for backend safety.
@@ -667,13 +675,14 @@ class AcademyDialog(QDialog):
 
             # Show Challenge Summary Dialog
             first_attempt_status = "YES" if res.attempts == 1 else "NO"
+            repeat_note = "" if awarded_xp > 0 else " (already completed — no repeat XP)"
             QMessageBox.information(
                 self,
                 "🎯 Challenge Complete!",
                 f"• Concept: {lesson.category}\n"
                 f"• Attempts Made: {res.attempts}\n"
                 f"• Hints Requested: {res.hint_level} / 3\n"
-                f"• XP Earned: +{xp_reward} XP\n"
+                f"• XP Earned: +{awarded_xp} XP{repeat_note}\n"
                 f"• First-Attempt Success: {first_attempt_status}\n\n"
                 f"Explanation:\n{res.explanation}"
             )
@@ -708,6 +717,7 @@ class AcademyDialog(QDialog):
                 self.refresh_dashboard()
                 self.stacked_widget.setCurrentIndex(0)
         else:
+            self.update_xp_reward_display()  # attempt tier dropped - show new worth
             QMessageBox.critical(
                 self,
                 "❌ Incorrect",
@@ -761,6 +771,24 @@ class AcademyDialog(QDialog):
     # =========================================================
     # Resets & Navigation Utilities
     # =========================================================
+    def update_xp_reward_display(self):
+        """XP transparency: live badge showing what a correct answer is
+        worth RIGHT NOW (attempt tier + hint penalties factored)."""
+        if not hasattr(self, "xp_reward_label"):
+            return
+        if self.is_review_mode:
+            self.xp_reward_label.setText("📖 Review Mode — no XP awarded")
+            self.xp_reward_label.setStyleSheet("color: #A0AEC0; font-size: 11px; font-weight: bold;")
+            return
+        xp = self.active_session.current_xp_potential()
+        base = 15 if self.active_question.question_type == "ordering" else 10
+        if xp >= base:
+            color, note = "#00FF66", ""
+        else:
+            color, note = "#FFA500", " (hints and failed attempts reduce the reward)"
+        self.xp_reward_label.setText(f"🎯 Worth: {xp} XP{note}")
+        self.xp_reward_label.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: bold;")
+
     def update_xp_header(self):
         self.xp_label.setText(f"XP: {self.progress.xp} | Level {self.progress.level}")
         

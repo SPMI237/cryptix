@@ -30,6 +30,27 @@ class ChallengeSession:
         else:
             return f"💡 Hint 3 (Expository Solution Clue): {self.question.explanation}"
 
+    def current_xp_potential(self) -> int:
+        """
+        XP a correct answer submitted RIGHT NOW would earn, factoring in the
+        current attempt number and hint usage. Single source of truth for
+        both evaluate() and the UI's live 'Worth: X XP' badge.
+        """
+        base_xp = 15 if self.question.question_type == "ordering" else 10
+
+        if self.attempts == 1:
+            earned_xp = base_xp
+        elif self.attempts == 2:
+            earned_xp = 10 if self.question.question_type == "ordering" else 7
+        else:
+            earned_xp = 5
+
+        # Apply progressive hint penalty (deducts 2 XP per hint level, capped at minimum 5 XP)
+        if self.hint_level > 0:
+            earned_xp = max(5, earned_xp - (self.hint_level * 2))
+
+        return earned_xp
+
     def evaluate(self, student_answer: str) -> ChallengeResult:
         """
         Evaluates the student's answer using decoupled, type-specific evaluators.
@@ -53,19 +74,8 @@ class ChallengeSession:
         if correct:
             self.state = STATE_COMPLETED
 
-            # Calculate XP reward based on attempts and hints
-            base_xp = 15 if self.question.question_type == "ordering" else 10
-
-            if self.attempts == 1:
-                earned_xp = base_xp
-            elif self.attempts == 2:
-                earned_xp = 10 if self.question.question_type == "ordering" else 7
-            else:
-                earned_xp = 5
-
-            # Apply progressive hint penalty (deducts 2 XP per hint level, capped at minimum 5 XP)
-            if self.hint_level > 0:
-                earned_xp = max(5, earned_xp - (self.hint_level * 2))
+            # XP reward comes from the live potential (attempts + hints factored)
+            earned_xp = self.current_xp_potential()
 
             return ChallengeResult(
                 challenge_id=self.question.id,
