@@ -122,16 +122,64 @@ def _write_wav(path, samples):
 
 
 def tone(freq, duration, kind="sine", decay=6.0, amp=1.0, sweep_to=None, attack=0.004):
-    """One enveloped note. kind: 'sine' | 'square'."""
+    """One enveloped note. kind: 'sine' | 'square' | 'triangle'."""
     n = int(duration * SAMPLE_RATE)
     if sweep_to is not None:
         raw = _sweep(n, freq, sweep_to, amp)
     elif kind == "square":
         raw = _square(n, freq, amp)
+    elif kind == "triangle":
+        raw = _triangle(n, freq, amp)
     else:
         raw = _sine(n, freq, amp)
     env = _envelope(n, attack, decay)
     return [s * e for s, e in zip(raw, env)]
+
+
+def _triangle(num_samples, freq, amplitude=1.0, harmonics=5):
+    """Triangle wave: odd harmonics falling off at 1/k^2 - warm and hollow."""
+    out = [0.0] * num_samples
+    k = 1
+    sign = 1.0
+    while k <= harmonics * 2:
+        a = amplitude * sign / (k * k)
+        w = TWO_PI * freq * k / SAMPLE_RATE
+        for i in range(num_samples):
+            out[i] += a * math.sin(w * i)
+        k += 2
+        sign = -sign
+    return out
+
+
+def noise_hit(duration, decay=18.0, amp=1.0, cutoff_hz=8000, seed=99):
+    """Seeded noise percussion burst (hats/ticks). Deterministic per seed."""
+    n = int(duration * SAMPLE_RATE)
+    rng = random.Random(seed)
+    raw = [rng.uniform(-1.0, 1.0) for _ in range(n)]
+    a = 1.0 - math.exp(-TWO_PI * cutoff_hz / SAMPLE_RATE)
+    y = 0.0
+    lp = []
+    for x in raw:
+        y += a * (x - y)
+        lp.append(y)
+    m = max((abs(v) for v in lp), default=0.0) or 1.0
+    env = _envelope(n, 0.001, decay)
+    return [s / m * e * amp for s, e in zip(lp, env)]
+
+
+def fm_bell(freq, duration, ratio=3.5, index=3.0, decay=7.0, amp=1.0):
+    """FM metallic bell: carrier modulated at an inharmonic ratio with a
+    decaying modulation index - bright attack, clangorous tail."""
+    n = int(duration * SAMPLE_RATE)
+    wc = TWO_PI * freq / SAMPLE_RATE
+    wm = TWO_PI * freq * ratio / SAMPLE_RATE
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        idx = index * math.exp(-decay * 0.7 * t)
+        out.append(amp * math.sin(wc * i + idx * math.sin(wm * i)))
+    env = _envelope(n, 0.002, decay)
+    return [s * e for s, e in zip(out, env)]
 
 
 # =========================================================
@@ -416,9 +464,16 @@ def _progression_loop(chords, bell_spec, pad_attack, pad_release, pad_amp,
                            release_s=sub_attack or pad_release)
         buf = _place(buf, sv, at)
 
-        for freq, onset, amp, decay, attack, kind in bell_spec(pads):
-            buf = _place(buf, tone(freq, 0.5, kind=kind, decay=decay,
-                                   amp=amp, attack=attack), t0 + onset)
+        for spec in bell_spec(pads):
+            freq, onset, amp, decay, attack, kind = spec
+            if kind == "hat":
+                snd = noise_hit(0.03, decay=decay, amp=amp, cutoff_hz=9000,
+                                seed=4242 + ci * 13 + int(onset * 10))
+            elif kind == "fm":
+                snd = fm_bell(freq, 0.5, decay=decay, amp=amp)
+            else:
+                snd = tone(freq, 0.5, kind=kind, decay=decay, amp=amp, attack=attack)
+            buf = _place(buf, snd, t0 + onset)
 
         if thump_spec:
             for freq, onset, amp, decay in thump_spec:
@@ -429,32 +484,31 @@ def _progression_loop(chords, bell_spec, pad_attack, pad_release, pad_amp,
 
 
 # ---------------- Theme 2: premium_minimal (6C.2) ----------------
-# Apple/Linear-like: rounded soft sines, slow attacks, nothing sharp.
+# Apple/Linear-like: warm TRIANGLE timbre, felt-soft attacks, SPARSE single
+# gestures (often one note where other themes play two or three).
 
 def _pm_events():
-    def soft(f, dur, decay=5.0, amp=1.0):
-        return tone(f, dur, decay=decay, amp=amp, attack=0.05)
-    def pair(f1, f2, dur, gap, decay=5.0, amp=1.0):
-        return _place(soft(f1, dur, decay, amp), soft(f2, dur, decay, amp), gap)
+    def tap(f, dur, decay=5.0, amp=1.0):
+        return tone(f, dur, kind="triangle", decay=decay, amp=amp, attack=0.02)
+    def soft2(f1, f2, dur, gap, decay=5.0, amp=1.0):
+        return _place(tap(f1, dur, decay, amp), tap(f2, dur, decay, amp), gap)
     return {
-        "academy_opened": lambda: pair(523.25, 659.25, 0.32, 0.15),
-        "lab_opened": lambda: pair(392.00, 493.88, 0.38, 0.18),
-        "experiment_selected": lambda: soft(1318.51, 0.05, decay=22, amp=0.6),
-        "experiment_started": lambda: pair(440.00, 554.37, 0.22, 0.12),
-        "structural_rejection": lambda: pair(987.77, 987.77, 0.06, 0.12, decay=14, amp=0.7),
-        "cryptographic_rejection": lambda: _place(soft(261.63, 0.45), soft(311.13, 0.42, amp=0.85), 0.0),
-        "control_group_success": lambda: _place(pair(523.25, 659.25, 0.26, 0.12),
-                                                soft(783.99, 0.26), 0.24),
-        "prediction_recorded": lambda: soft(783.99, 0.15),
-        "prediction_correct": lambda: pair(587.33, 739.99, 0.18, 0.14),
-        "prediction_incorrect": lambda: pair(493.88, 440.00, 0.18, 0.16, amp=0.8),
-        "matching_correct": lambda: soft(880.00, 0.12),
-        "matching_incorrect": lambda: pair(415.30, 369.99, 0.14, 0.14, amp=0.7),
-        "question_correct": lambda: pair(659.26, 783.99, 0.16, 0.14),
-        "question_incorrect": lambda: pair(493.88, 440.00, 0.16, 0.16, amp=0.8),
-        "challenge_completed": lambda: _place(pair(523.25, 659.25, 0.24, 0.12),
-                                              soft(783.99, 0.26), 0.24),
-        "xp_awarded": lambda: soft(1174.66, 0.10, amp=0.8),
+        "academy_opened": lambda: _place(tap(261.63, 0.50, decay=4, amp=0.9), tap(392.00, 0.40, decay=4), 0.05),
+        "lab_opened": lambda: tap(174.61, 0.55, decay=3.5, amp=0.9),
+        "experiment_selected": lambda: tap(659.26, 0.04, decay=35, amp=0.45),
+        "experiment_started": lambda: soft2(329.63, 440.00, 0.16, 0.12, amp=0.8),
+        "structural_rejection": lambda: tap(987.77, 0.06, decay=20, amp=0.5),
+        "cryptographic_rejection": lambda: _place(tap(220.00, 0.45, decay=4), tap(261.63, 0.42, decay=4, amp=0.85), 0.0),
+        "control_group_success": lambda: _place(_place(tap(392.00, 0.24, decay=5), tap(493.88, 0.22, decay=5), 0.12), tap(587.33, 0.24, decay=4), 0.24),
+        "prediction_recorded": lambda: tap(659.26, 0.14),
+        "prediction_correct": lambda: soft2(523.25, 659.26, 0.16, 0.14),
+        "prediction_incorrect": lambda: soft2(440.00, 392.00, 0.16, 0.16, amp=0.7),
+        "matching_correct": lambda: tap(880.00, 0.10, amp=0.8),
+        "matching_incorrect": lambda: soft2(392.00, 329.63, 0.13, 0.14, amp=0.6),
+        "question_correct": lambda: soft2(587.33, 739.99, 0.15, 0.13),
+        "question_incorrect": lambda: soft2(440.00, 392.00, 0.15, 0.15, amp=0.7),
+        "challenge_completed": lambda: _place(_place(tap(523.25, 0.22, decay=5), tap(659.26, 0.20, decay=5), 0.11), tap(783.99, 0.24, decay=4), 0.22),
+        "xp_awarded": lambda: tap(1046.50, 0.09, amp=0.75),
     }
 
 
@@ -465,11 +519,10 @@ def _pm_academy_loop():
         ([174.61, 220.00, 261.63, 329.63], 87.31),   # Fmaj7
         ([196.00, 246.94, 293.66, 392.00], 98.00),   # G6
     ]
-    def bells(pads):
-        return [(pads[1] * 2, 0.90, 0.20, 4.0, 0.06, "sine"),
-                (pads[3] * 1.0, 2.30, 0.14, 4.0, 0.06, "sine")]
-    return _progression_loop(chords, bells, pad_attack=0.8, pad_release=0.8,
-                             pad_amp=0.55, sub_amp=0.45)
+    def sparse(pads):
+        return [(pads[1] * 2, 1.40, 0.22, 3.5, 0.08, "triangle")]
+    return _progression_loop(chords, sparse, pad_attack=0.9, pad_release=0.9,
+                             pad_amp=0.40, sub_amp=0.50)
 
 
 def _pm_lab_loop():
@@ -479,40 +532,40 @@ def _pm_lab_loop():
         ([220.00, 261.63, 329.63], 110.00),          # Am
         ([233.08, 277.18, 349.23], 116.54),          # Bbm
     ]
-    def bells(pads):
-        return [(pads[0] * 2, 1.10, 0.18, 4.0, 0.07, "sine"),
-                (pads[2] * 1.0, 2.50, 0.12, 4.0, 0.07, "sine")]
-    return _progression_loop(chords, bells, pad_attack=0.9, pad_release=0.9,
-                             pad_amp=0.55, sub_amp=0.42)
+    def sparse(pads):
+        return [(pads[0] * 2, 1.80, 0.18, 3.5, 0.09, "triangle")]
+    return _progression_loop(chords, sparse, pad_attack=1.0, pad_release=1.0,
+                             pad_amp=0.40, sub_amp=0.46)
 
 
 # ---------------- Theme 3: scientific (6C.3) ----------------
-# Clean analytical instrument: pure precise sines, calibration beeps.
+# Analytical instrument: crystal SINE pings with long clean decays, Geiger
+# noise ticks, and measurement frequency sweeps. High, precise, clinical.
 
 def _sc_events():
-    def ping(f, dur, decay=6.0, amp=1.0):
-        return tone(f, dur, decay=decay, amp=amp, attack=0.002)
-    def pair(f1, f2, dur, gap, decay=6.0, amp=1.0):
+    def ping(f, dur, decay=9.0, amp=1.0):
+        return tone(f, dur, decay=decay, amp=amp, attack=0.001)
+    def ping2(f1, f2, dur, gap, decay=9.0, amp=1.0):
         return _place(ping(f1, dur, decay, amp), ping(f2, dur, decay, amp), gap)
+    def tick(seed=7):
+        return noise_hit(0.018, decay=40, amp=0.5, cutoff_hz=9000, seed=seed)
     return {
-        "academy_opened": lambda: pair(659.26, 880.00, 0.26, 0.14),
-        "lab_opened": lambda: _place(ping(220.00, 0.45, decay=4), ping(440.00, 0.30), 0.20),
-        "experiment_selected": lambda: ping(2000.00, 0.03, decay=30, amp=0.55),
-        "experiment_started": lambda: tone(440.00, 0.22, sweep_to=1320.00, decay=5, attack=0.002),
-        "structural_rejection": lambda: pair(1760.00, 1760.00, 0.05, 0.11, decay=16, amp=0.7),
-        "cryptographic_rejection": lambda: _place(ping(220.00, 0.40), ping(277.18, 0.38, amp=0.85), 0.0),
-        "control_group_success": lambda: _place(pair(659.26, 880.00, 0.22, 0.10),
-                                                ping(1046.50, 0.22), 0.20),
-        "prediction_recorded": lambda: ping(987.77, 0.12),
-        "prediction_correct": lambda: pair(783.99, 987.77, 0.14, 0.12),
-        "prediction_incorrect": lambda: pair(659.26, 523.25, 0.16, 0.15, amp=0.75),
-        "matching_correct": lambda: ping(1244.51, 0.10),
-        "matching_incorrect": lambda: pair(587.33, 523.25, 0.13, 0.13, amp=0.7),
-        "question_correct": lambda: pair(880.00, 1046.50, 0.14, 0.12),
-        "question_incorrect": lambda: pair(659.26, 587.33, 0.14, 0.14, amp=0.75),
-        "challenge_completed": lambda: _place(pair(659.26, 783.99, 0.20, 0.11),
-                                              ping(987.77, 0.22), 0.22),
-        "xp_awarded": lambda: ping(1975.53, 0.07, amp=0.8),
+        "academy_opened": lambda: ping2(880.00, 1318.51, 0.34, 0.15),
+        "lab_opened": lambda: _place(ping(220.00, 0.55, decay=4), tick(11), 0.30),
+        "experiment_selected": lambda: tick(3),
+        "experiment_started": lambda: tone(440.00, 0.26, sweep_to=1760.00, decay=5, attack=0.001),
+        "structural_rejection": lambda: _place(tick(5), tick(5), 0.12),
+        "cryptographic_rejection": lambda: _place(ping(196.00, 0.55, decay=5), ping(246.94, 0.50, decay=5, amp=0.85), 0.0),
+        "control_group_success": lambda: _place(ping2(659.26, 880.00, 0.24, 0.10), ping(1046.50, 0.24), 0.20),
+        "prediction_recorded": lambda: ping(987.77, 0.14),
+        "prediction_correct": lambda: ping2(783.99, 987.77, 0.16, 0.12),
+        "prediction_incorrect": lambda: ping2(659.26, 523.25, 0.17, 0.15, amp=0.75),
+        "matching_correct": lambda: ping(1244.51, 0.12),
+        "matching_incorrect": lambda: ping2(587.33, 523.25, 0.14, 0.13, amp=0.7),
+        "question_correct": lambda: ping2(880.00, 1046.50, 0.15, 0.12),
+        "question_incorrect": lambda: ping2(659.26, 587.33, 0.15, 0.14, amp=0.75),
+        "challenge_completed": lambda: _place(ping2(659.26, 783.99, 0.20, 0.10), ping(987.77, 0.26), 0.20),
+        "xp_awarded": lambda: ping(1975.53, 0.09, amp=0.8),
     }
 
 
@@ -523,12 +576,14 @@ def _sc_academy_loop():
         ([220.00, 261.63, 329.63], 110.00),          # Am
         ([174.61, 220.00, 261.63], 87.31),           # F
     ]
-    def ticks(pads):
-        return [(pads[0] * 2, 0.50, 0.15, 12.0, 0.002, "sine"),
-                (pads[0] * 2, 1.50, 0.12, 12.0, 0.002, "sine"),
-                (pads[0] * 2, 2.50, 0.15, 12.0, 0.002, "sine")]
-    return _progression_loop(chords, ticks, pad_attack=0.5, pad_release=0.5,
-                             pad_amp=0.50, sub_amp=0.40)
+    def grid(pads):
+        out = []
+        for k in range(6):  # metronome grid: a quiet tick every 0.5 s
+            out.append((0, 0.50 * k, 0.11 if k % 3 else 0.16, 30, 0.001, "hat"))
+        out.append((pads[2] * 4, 1.00, 0.14, 8.0, 0.001, "sine"))  # one crystal ping
+        return out
+    return _progression_loop(chords, grid, pad_attack=0.5, pad_release=0.5,
+                             pad_amp=0.34, sub_amp=0.38)
 
 
 def _sc_lab_loop():
@@ -538,45 +593,49 @@ def _sc_lab_loop():
         ([130.81, 164.81, 196.00], 65.41),           # C low
         ([155.56, 185.00, 233.08], 77.78),           # Dbm
     ]
-    def ticks(pads):
-        return [(pads[0] * 2, 0.75, 0.16, 10.0, 0.002, "sine"),
-                (pads[0] * 2, 1.75, 0.12, 10.0, 0.002, "sine"),
-                (pads[0] * 2, 2.50, 0.16, 10.0, 0.002, "sine")]
-    return _progression_loop(chords, ticks, pad_attack=0.55, pad_release=0.55,
-                             pad_amp=0.50, sub_amp=0.38)
+    def grid(pads):
+        out = []
+        for k in range(4):  # lazier grid: every 0.75 s
+            out.append((0, 0.75 * k, 0.12 if k % 2 else 0.17, 28, 0.001, "hat"))
+        out.append((pads[0] * 4, 1.50, 0.15, 7.0, 0.001, "sine"))
+        return out
+    return _progression_loop(chords, grid, pad_attack=0.55, pad_release=0.55,
+                             pad_amp=0.34, sub_amp=0.36)
 
 
 # ---------------- Theme 4: cyberpunk (6C.4) ----------------
-# Neon synthwave: band-limited square edge, sub thumps, dramatic sweeps.
+# Neon synthwave: FM METALLIC bells, NOISE hi-hats, SUB-BASS slides, fast
+# rising square arpeggios. Rhythmic, punchy, dramatic.
 
 def _cp_events():
-    def edge(f, dur, decay=6.0, amp=0.8):
-        return tone(f, dur, kind="square", decay=decay, amp=amp)
-    def pair(f1, f2, dur, gap, decay=6.0, amp=0.8):
-        return _place(edge(f1, dur, decay, amp), edge(f2, dur, decay, amp), gap)
+    def bell(f, dur=0.30, decay=8.0, amp=0.9):
+        return fm_bell(f, dur, ratio=3.5, index=3.2, decay=decay, amp=amp)
+    def arp(*freqs, dur=0.11, gap=0.07, amp=0.8):
+        base = tone(freqs[0], dur, kind="square", decay=9, amp=amp)
+        for i, f in enumerate(freqs[1:], start=1):
+            base = _place(base, tone(f, dur, kind="square", decay=9, amp=amp), i * gap)
+        return base
+    def hat(seed=21, amp=0.55):
+        return noise_hit(0.025, decay=35, amp=amp, cutoff_hz=9500, seed=seed)
+    def sub(f=49.00, dur=0.30, amp=0.8, decay=7.0):
+        return tone(f, dur, decay=decay, amp=amp, attack=0.002)
     return {
-        "academy_opened": lambda: pair(261.63, 392.00, 0.28, 0.14, amp=0.6),
-        "lab_opened": lambda: _place(_place(edge(49.00, 0.55, decay=3.5),
-                                            tone(110.00, 0.35, sweep_to=440.00, decay=5, amp=0.6), 0.18),
-                                     edge(987.77, 0.10, decay=12, amp=0.5), 0.40),
-        "experiment_selected": lambda: edge(2500.00, 0.035, decay=30, amp=0.5),
-        "experiment_started": lambda: tone(165.00, 0.22, kind="square", sweep_to=990.00, decay=4.5, amp=0.75),
-        "structural_rejection": lambda: pair(1567.98, 1567.98, 0.06, 0.12, decay=16, amp=0.6),
-        "cryptographic_rejection": lambda: _place(_place(edge(138.59, 0.45, decay=5),
-                                                         edge(174.61, 0.42, decay=5, amp=0.85), 0.0),
-                                                  edge(46.25, 0.45, decay=4, amp=0.6), 0.0),
-        "control_group_success": lambda: _place(pair(440.00, 554.37, 0.24, 0.10, amp=0.6),
-                                                edge(659.26, 0.26, amp=0.6), 0.20),
-        "prediction_recorded": lambda: edge(987.77, 0.15),
-        "prediction_correct": lambda: pair(659.26, 987.77, 0.16, 0.14),
-        "prediction_incorrect": lambda: pair(554.37, 415.30, 0.18, 0.16, amp=0.7),
-        "matching_correct": lambda: edge(1318.51, 0.10),
-        "matching_incorrect": lambda: pair(493.88, 392.00, 0.14, 0.14, amp=0.7),
-        "question_correct": lambda: pair(739.99, 987.77, 0.15, 0.12),
-        "question_incorrect": lambda: pair(587.33, 462.25, 0.16, 0.15, amp=0.7),
-        "challenge_completed": lambda: _place(pair(523.25, 659.26, 0.22, 0.11, amp=0.7),
-                                              edge(783.99, 0.28, amp=0.7), 0.22),
-        "xp_awarded": lambda: tone(1318.51, 0.12, sweep_to=2637.02, decay=10, amp=0.7),
+        "academy_opened": lambda: _place(bell(523.25, 0.32), sub(65.41, 0.30, 0.6), 0.0),
+        "lab_opened": lambda: _place(_place(tone(110.00, 0.40, kind="square", sweep_to=55.00, decay=5, amp=0.85), bell(220.00, 0.30, amp=0.6), 0.12), hat(31, 0.5), 0.30),
+        "experiment_selected": lambda: _place(hat(13, 0.5), tone(2500.00, 0.03, kind="square", decay=30, amp=0.4), 0.0),
+        "experiment_started": lambda: arp(220.00, 329.63, 440.00, 659.26, dur=0.09, gap=0.05),
+        "structural_rejection": lambda: _place(fm_bell(1567.98, 0.07, ratio=2.0, index=2.0, decay=18, amp=0.7), fm_bell(1567.98, 0.07, ratio=2.0, index=2.0, decay=18, amp=0.7), 0.12),
+        "cryptographic_rejection": lambda: _place(_place(bell(138.59, 0.42, decay=5), bell(174.61, 0.40, decay=5, amp=0.85), 0.0), sub(46.25, 0.42, 0.7), 0.0),
+        "control_group_success": lambda: _place(arp(440.00, 554.37, 659.26, dur=0.10, gap=0.08, amp=0.75), sub(55.00, 0.26, 0.6), 0.0),
+        "prediction_recorded": lambda: bell(987.77, 0.16, decay=10, amp=0.8),
+        "prediction_correct": lambda: arp(659.26, 987.77, dur=0.10, gap=0.07),
+        "prediction_incorrect": lambda: _place(tone(554.37, 0.16, kind="square", decay=8, amp=0.7), tone(415.30, 0.18, kind="square", decay=7, amp=0.7), 0.15),
+        "matching_correct": lambda: bell(1318.51, 0.12, decay=11, amp=0.8),
+        "matching_incorrect": lambda: _place(tone(493.88, 0.13, kind="square", decay=9, amp=0.7), tone(392.00, 0.15, kind="square", decay=8, amp=0.7), 0.12),
+        "question_correct": lambda: arp(739.99, 987.77, dur=0.10, gap=0.06),
+        "question_incorrect": lambda: _place(tone(587.33, 0.14, kind="square", decay=8, amp=0.7), tone(462.25, 0.16, kind="square", decay=7, amp=0.7), 0.14),
+        "challenge_completed": lambda: _place(_place(arp(523.25, 659.26, 783.99, dur=0.11, gap=0.09, amp=0.85), sub(49.00, 0.30, 0.8), 0.0), hat(77, 0.6), 0.28),
+        "xp_awarded": lambda: tone(1318.51, 0.14, kind="square", sweep_to=2637.02, decay=10, amp=0.7),
     }
 
 
@@ -587,12 +646,16 @@ def _cp_academy_loop():
         ([261.63, 329.63, 392.00], 130.81),          # C
         ([164.81, 207.65, 246.94], 82.41),           # E
     ]
-    def bells(pads):
-        return [(pads[0] * 2, 0.60, 0.24, 5.0, 0.004, "square"),
-                (pads[2] * 2, 1.80, 0.20, 5.0, 0.004, "square")]
+    def groove(pads):
+        out = []
+        for k in range(8):  # 8th-note hi-hat grid
+            out.append((0, 0.375 * k, 0.12 if k % 2 else 0.18, 32, 0.001, "hat"))
+        out.append((pads[0] * 2, 0.60, 0.22, 5.0, 0.004, "fm"))
+        out.append((pads[2] * 2, 1.80, 0.18, 5.0, 0.004, "fm"))
+        return out
     thumps = [(49.00, 0.00, 0.5, 7.0), (49.00, 1.20, 0.4, 7.0), (49.00, 2.40, 0.5, 7.0)]
-    return _progression_loop(chords, bells, pad_attack=0.4, pad_release=0.4,
-                             pad_amp=0.55, sub_amp=0.45, thump_spec=thumps)
+    return _progression_loop(chords, groove, pad_attack=0.4, pad_release=0.4,
+                             pad_amp=0.42, sub_amp=0.45, thump_spec=thumps)
 
 
 def _cp_lab_loop():
@@ -602,12 +665,16 @@ def _cp_lab_loop():
         ([155.56, 196.00, 233.08], 77.78),           # Ebm
         ([138.59, 174.61, 207.65], 69.30),           # Cm
     ]
-    def bells(pads):
-        return [(pads[0] * 2, 0.75, 0.26, 4.5, 0.004, "square"),
-                (pads[1] * 4, 1.90, 0.18, 4.5, 0.004, "square")]
+    def groove(pads):
+        out = []
+        for k in range(8):
+            out.append((0, 0.375 * k + 0.19, 0.10 if k % 2 else 0.16, 30, 0.001, "hat"))
+        out.append((pads[0] * 2, 0.75, 0.24, 4.5, 0.004, "fm"))
+        out.append((pads[1] * 4, 1.90, 0.18, 4.5, 0.004, "fm"))
+        return out
     thumps = [(43.65, 0.00, 0.55, 7.0), (43.65, 1.50, 0.45, 7.0), (43.65, 2.55, 0.55, 7.0)]
-    return _progression_loop(chords, bells, pad_attack=0.45, pad_release=0.45,
-                             pad_amp=0.55, sub_amp=0.45, thump_spec=thumps)
+    return _progression_loop(chords, groove, pad_attack=0.45, pad_release=0.45,
+                             pad_amp=0.42, sub_amp=0.45, thump_spec=thumps)
 
 
 # ---------------- The registry ----------------
