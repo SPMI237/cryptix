@@ -49,7 +49,11 @@ class CryptixSplash(QWidget):
         self._final_phase = False
         self._failure = None  # (step_label, message)
         self._phase = 0.0
-        self.setFixedSize(480, 400)
+        # Height derives from the row count so the final message (and the
+        # failure detail line) ALWAYS fit inside the window with margin:
+        # rows start at y=216, each row is 26px, the closing message needs
+        # ~64px below the last row. (A fixed 400px clipped it before.)
+        self.setFixedSize(480, max(360, 216 + 26 * len(self._labels) + 64))
         self.setWindowTitle("Cryptix Core")
 
         self._pulse = QTimer(self)
