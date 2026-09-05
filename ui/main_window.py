@@ -663,7 +663,6 @@ class MainWindow(QMainWindow):
         size_policy.setRetainSizeWhenHidden(True)
         self.status_banner.setSizePolicy(size_policy)
         self.status_banner.hide()
-        layout.addWidget(self.status_banner)
 
         # Cryptix Academy + Audit Log share ONE row so the window footprint
         # never changes when learning mode is toggled (Stage 7 fix).
@@ -679,6 +678,10 @@ class MainWindow(QMainWindow):
         bottom_row.addWidget(self.academy_button, 1)
         bottom_row.addWidget(self.view_log_button, 1)
         layout.addLayout(bottom_row)
+
+        # Banner slot at the very bottom: the buttons->log spacing stays as
+        # tight as v1.4 while the slot itself remains permanent (layout-stable).
+        layout.addWidget(self.status_banner)
 
         # Handle file passed via file association
         if self.file_path:
@@ -999,6 +1002,9 @@ class MainWindow(QMainWindow):
 
             self.settings_panel.move(window_pos.x() - 200, window_pos.y())
             self.settings_panel.show()
+            # The scroll central widget is raised above older siblings when
+            # installed - the panel must be re-raised or it opens BEHIND it.
+            self.settings_panel.raise_()
 
     # =====================================================
     # Lockout System

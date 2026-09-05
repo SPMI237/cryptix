@@ -557,3 +557,48 @@ def test_main_window_minimum_is_screen_independent():
     mw = _make_main_window()
     assert mw.minimumSizeHint().height() <= 300  # scroll wrapper: tiny floor
     assert mw.minimumSizeHint().width() <= 900
+
+
+def test_settings_menu_opens_above_scroll_content():
+    """Fix: the settings panel must appear ABOVE the scroll central widget
+    (setCentralWidget raises the scroll over older siblings)."""
+    from PySide6.QtCore import QPoint
+
+    app = _app()
+    mw = _make_main_window()
+
+    mw.menu_button.click()  # the burger menu
+    app.processEvents()
+
+    assert mw.settings_panel.isVisible()
+    children = mw.children()
+    assert children.index(mw.settings_panel) > children.index(mw.centralWidget()), (
+        "settings panel would render BEHIND the central widget"
+    )
+    # and it lands inside the window
+    pos = mw.settings_panel.mapTo(mw, QPoint(0, 0))
+    assert 0 <= pos.x() < mw.width() and 0 <= pos.y() < mw.height()
+
+    mw.menu_button.click()  # toggles closed
+    app.processEvents()
+    assert mw.settings_panel.isHidden()
+
+
+def test_log_button_sits_close_to_action_buttons():
+    """Fix: v1.4-style tightness - small, banner-invariant gap between the
+    action row (Encrypt..Analyze) and the Academy/Audit row."""
+    from PySide6.QtCore import QPoint
+
+    app = _app()
+    mw = _make_main_window()
+
+    def gap():
+        actions_bottom = mw.analyze_button.mapTo(mw, QPoint(0, 0)).y() + mw.analyze_button.height()
+        return mw.view_log_button.mapTo(mw, QPoint(0, 0)).y() - actions_bottom
+
+    idle = gap()
+    mw.show_banner("error", "some error"); app.processEvents()
+    with_banner = gap()
+
+    assert idle <= 90, f"gap too large: {idle}px"
+    assert idle == with_banner  # banner never changes the spacing
