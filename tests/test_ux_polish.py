@@ -531,3 +531,29 @@ def test_shortcut_hints_are_visible():
     parent2, lab = _make_lab()
     hints = [l for l in lab.findChildren(QLabel) if "Enter" in l.text() and "Esc" in l.text()]
     assert hints, "Tamper Lab shortcut hint label missing"
+
+
+def test_main_window_minimum_never_grows_during_operations():
+    """Fix (DPI disease): the layout minimum must be constant through an
+    operation cycle - growth pushed controls off-screen at 150% DPI."""
+    app = _app()
+    mw = _make_main_window()
+
+    base = mw.minimumSizeHint().height()
+    mw.set_ui_state("PROCESSING"); app.processEvents()
+    during = mw.minimumSizeHint().height()
+    mw._tick_busy(); mw.update_progress(50); app.processEvents()
+    mw.on_error("AuthenticationError: MAC check failed"); app.processEvents()
+    after = mw.minimumSizeHint().height()
+
+    assert base == during == after, f"minimum grew: {base} -> {during} -> {after}"
+
+
+def test_main_window_minimum_is_screen_independent():
+    """Fix: the window minimum must fit high-DPI laptop screens.
+    At 150% scaling, 1080p offers ~649 DIP of usable height - the old
+    central layout alone demanded 656."""
+    _app()
+    mw = _make_main_window()
+    assert mw.minimumSizeHint().height() <= 300  # scroll wrapper: tiny floor
+    assert mw.minimumSizeHint().width() <= 900

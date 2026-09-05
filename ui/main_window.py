@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QLabel,
     QFrame,
+    QScrollArea,
     QLineEdit,
     QFileDialog,
     QProgressBar,
@@ -278,6 +279,8 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         QTimer.singleShot(2000, self.check_for_updates)
+
+        self._wrap_central_in_scroll()
         if "hardware_profile" not in self.settings:
             QTimer.singleShot(3500, self.prompt_calibration)
         self.setAcceptDrops(True)
@@ -602,8 +605,14 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(button_layout)
 
-        # Processing progress bar (visible only during process)
+        # Processing progress bar (visible only during process).
+        # Fixed height + retained slot: showing it can never change the
+        # layout minimum (it grew by ~37px on every operation before).
         self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(16)
+        _pb_policy = self.progress_bar.sizePolicy()
+        _pb_policy.setRetainSizeWhenHidden(True)
+        self.progress_bar.setSizePolicy(_pb_policy)
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
@@ -802,6 +811,34 @@ class MainWindow(QMainWindow):
         layout.addWidget(close_button)
 
         dialog.exec()
+
+    def _wrap_central_in_scroll(self):
+        """Stage 7 fix: the built layout's minimum height (650+ DIP) exceeds
+        the usable screen height at high DPI (e.g. 150% on 1080p ~= 649 DIP),
+        which pushed the bottom controls off-screen whenever the minimum
+        grew during an operation. Wrapping the content in a scroll area
+        makes the window minimum screen-independent: small screens scroll
+        instead of clipping controls out of view."""
+        old_central = self.centralWidget()
+        layout = old_central.layout()
+        if layout is None:
+            return
+
+        inner = QWidget()
+        inner.setLayout(layout)  # steal the fully-built layout
+
+        scroll = QScrollArea()
+        scroll.setWidget(inner)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Keep the drag-drop overlay above the viewport, not the content
+        self.drag_overlay.setParent(scroll)
+        self.setCentralWidget(scroll)
+        self.drag_overlay.raise_()
+        self.drag_overlay.resize(scroll.size())
+        old_central.deleteLater()
 
     def check_for_updates(self):
         try:
