@@ -259,6 +259,10 @@ class TamperLabDialog(QDialog):
         reward_label.setStyleSheet("color: #FFD700; font-size: 10px; border: none;")
         predict_layout.addWidget(reward_label)
 
+        shortcut_hint = QLabel("⌨ Enter: advance the current step · Esc: close")
+        shortcut_hint.setStyleSheet("color: #6B7A90; font-size: 10px; border: none;")
+        predict_layout.addWidget(shortcut_hint)
+
         sep3 = QFrame()
         sep3.setFrameShape(QFrame.Shape.HLine)
         sep3.setStyleSheet("background-color: #262F3F; max-height: 1px; border: none;")

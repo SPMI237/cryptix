@@ -600,6 +600,16 @@ class AcademyDialog(QDialog):
             _add_shortcut("H", self._keyboard_hint)
 
         self.challenge_layout.addLayout(btn_box)
+
+        # Stage 7: shortcut discoverability - always visible, never in the way
+        if self.is_review_mode:
+            hint_text = "⌨ Enter: next question · Esc: close"
+        else:
+            hint_text = "⌨ Enter: submit · 1–4: select answer · H: hint · Esc: close"
+        self.shortcut_hint_label = QLabel(hint_text)
+        self.shortcut_hint_label.setStyleSheet("color: #6B7A90; font-size: 10px; border: none;")
+        self.challenge_layout.addWidget(self.shortcut_hint_label)
+
         self.stacked_widget.setCurrentIndex(2)
 
     def request_hint_action(self):

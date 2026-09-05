@@ -645,6 +645,14 @@ class MainWindow(QMainWindow):
         )
         self.banner_dismiss_btn.clicked.connect(self.clear_banner)
         banner_layout.addWidget(self.banner_dismiss_btn)
+
+        # Permanent fixed-height slot: the banner can NEVER change the layout
+        # total, so no control can ever shift when it appears or disappears
+        # (critical at high DPI where the layout runs at its minimum).
+        self.status_banner.setFixedHeight(52)
+        size_policy = self.status_banner.sizePolicy()
+        size_policy.setRetainSizeWhenHidden(True)
+        self.status_banner.setSizePolicy(size_policy)
         self.status_banner.hide()
         layout.addWidget(self.status_banner)
 
@@ -839,6 +847,7 @@ class MainWindow(QMainWindow):
         self._banner_gen = getattr(self, "_banner_gen", 0) + 1
         gen = self._banner_gen
         self.banner_label.setText(str(text))
+        self.banner_label.setToolTip(str(text))  # full text even if visually clipped
         color = self._BANNER_TEXT_COLORS.get(kind, "#E2E8F0")
         self.banner_label.setStyleSheet(f"color: {color}; border: none; font-size: 12px;")
         self.status_banner.setStyleSheet(self._BANNER_STYLES.get(kind, self._BANNER_STYLES["info"]))

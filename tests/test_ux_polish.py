@@ -487,3 +487,47 @@ def test_learning_toggle_never_pushes_audit_button_out():
     finally:
         mw.learning_toggle.setChecked(False)  # never leak state into other tests
         app.processEvents()
+
+
+def test_banner_never_shifts_layout():
+    """Fix: the banner lives in a permanent fixed slot - no control may move
+    when it appears or disappears (DPI-safe by construction)."""
+    from PySide6.QtCore import QPoint
+
+    app = _app()
+    mw = _make_main_window()
+
+    def audit_y():
+        return mw.view_log_button.mapTo(mw, QPoint(0, 0)).y()
+
+    before = audit_y()
+    mw.show_banner("error", "✗ long error line one\nline two\nline three")
+    app.processEvents()
+    during = audit_y()
+    mw.clear_banner()
+    app.processEvents()
+    after = audit_y()
+
+    assert before == during == after, f"layout shifted: {before} -> {during} -> {after}"
+    assert mw.status_banner.height() == 52  # fixed slot in both states
+    assert mw.status_banner.isHidden()
+
+
+def test_shortcut_hints_are_visible():
+    """Fix: shortcuts are discoverable - hint labels exist on both surfaces."""
+    from ui.academy_dialog import AcademyDialog
+    from PySide6.QtWidgets import QLabel
+
+    app = _app()
+    parent = QWidget()
+    academy = AcademyDialog(parent, audio=StubAudio())
+    academy.progress = LearningProgress()
+    lesson = next(l for l in academy.lessons if l.id == "kdf_argon2id")
+    academy.open_challenge(lesson)
+    app.processEvents()
+    assert "Enter" in academy.shortcut_hint_label.text()
+    assert "H" in academy.shortcut_hint_label.text()  # hint key documented
+
+    parent2, lab = _make_lab()
+    hints = [l for l in lab.findChildren(QLabel) if "Enter" in l.text() and "Esc" in l.text()]
+    assert hints, "Tamper Lab shortcut hint label missing"
