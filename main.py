@@ -1,9 +1,11 @@
-import sys
+# main.py
+
 import os
-from PySide6.QtWidgets import QApplication, QSplashScreen
-from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QTimer
-from ui.main_window import MainWindow
+import sys
+
+from PySide6.QtWidgets import QApplication, QMessageBox
+
+from ui.splash import CryptixSplash, run_startup_sequence, startup_steps, fade_in_window
 
 
 def main():
@@ -14,21 +16,30 @@ def main():
     if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
         initial_file = sys.argv[1]
 
-    splash = QSplashScreen(QPixmap(400, 200))
-    splash.setStyleSheet(
-        "background-color: #0B0F19; color: #00F0FF; font-size: 16px;"
-    )
-    splash.showMessage(
-         "CRYPTIX CORE\nInitializing Secure Modules...",
-        Qt.AlignCenter,
-        Qt.cyan
-    )
+    # Real startup milestones (engine -> config -> hardware -> academy ->
+    # audio -> interface). The splash lives exactly as long as they do.
+    holder = {}
+    steps = startup_steps(initial_file=initial_file, window_holder=holder)
+
+    splash = CryptixSplash([s[0] for s in steps])
     splash.show()
 
-    window = MainWindow(initial_file=initial_file)
+    def on_complete():
+        window = holder.get("window")
+        if window is not None:
+            fade_in_window(window)
 
-    QTimer.singleShot(1500, splash.close)
-    QTimer.singleShot(1500, window.show)
+    def on_critical(label, err):
+        QMessageBox.critical(
+            None,
+            "Cryptix Core — Startup Failure",
+            f"A critical component failed to initialize:\n\n"
+            f"✗ {label}\n\n{err}\n\n"
+            f"Cryptix Core cannot start safely."
+        )
+        sys.exit(1)
+
+    run_startup_sequence(splash, steps, on_complete, on_critical)
 
     sys.exit(app.exec())
 
